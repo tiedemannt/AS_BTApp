@@ -12,13 +12,13 @@ import android.widget.ArrayAdapter;
 import java.util.ArrayList;
 
 
-public class ListAdapter_BTLE_Devices extends ArrayAdapter<BluetoothDevice> {
+public class ListAdapter_BTLE_Devices extends ArrayAdapter<BT_Device> {
 
     Activity activity;
     int layoutResourceID;
-    ArrayList<BluetoothDevice> devices;
+    ArrayList<BT_Device> devices;
 
-    public ListAdapter_BTLE_Devices(Activity activity, int resource, ArrayList<BluetoothDevice> objects) {
+    public ListAdapter_BTLE_Devices(Activity activity, int resource, ArrayList<BT_Device> objects) {
         super(activity.getApplicationContext(), resource, objects);
 
         this.activity = activity;
@@ -36,9 +36,10 @@ public class ListAdapter_BTLE_Devices extends ArrayAdapter<BluetoothDevice> {
             convertView = inflater.inflate(layoutResourceID, parent, false);
         }
 
-        BluetoothDevice device = devices.get(position);
+        BluetoothDevice device = devices.get(position).m_device;
         String name = device.getName();
         String address = device.getAddress();
+        int rssi = devices.get(position).m_rssid;
 
         TextView tv = null;
 
@@ -57,6 +58,17 @@ public class ListAdapter_BTLE_Devices extends ArrayAdapter<BluetoothDevice> {
         else {
             tv.setText("No Address");
         }
+
+        tv = convertView.findViewById(R.id.tv_rssid);
+        if(rssi != 0)
+        {
+            tv.setText("" + rssi);
+        }
+        else
+        {
+            tv.setText("?");
+        }
+
 
         return convertView;
     }

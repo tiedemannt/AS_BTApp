@@ -3,13 +3,30 @@
     android:layout_width="match_parent" android:layout_height="match_parent"
     android:background="@android:color/background_light">
 
-    <TextView
+    <!--<TextView-->
+        <!--android:layout_width="wrap_content"-->
+        <!--android:layout_height="wrap_content"-->
+        <!--android:text="Connection Fragment"-->
+        <!--android:textSize="30dp"-->
+        <!--android:layout_centerInParent="true"-->
+        <!--/>-->
+    <CheckBox
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Connection Fragment"
-        android:textSize="30dp"
-        android:layout_centerInParent="true"
-        />
+        android:layout_marginLeft="10dp"
+        android:layout_marginTop="10dp"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentLeft="true"
+        android:text="BTLE Scan"
+        android:id="@+id/connection_fragment_checkBox"/>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_below="@+id/connection_fragment_switch"
+        android:layout_marginTop="10dp"
+        android:background="@android:color/darker_gray"/>
+
 
     <Switch
         android:id="@+id/connection_fragment_switch"
@@ -27,7 +44,7 @@
         android:layout_height="wrap_content"
         android:id="@+id/connection_fragment_listView"
         android:layout_below="@+id/connection_fragment_switch"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="20dp"
         android:layout_marginBottom="10dp"
         >
     </ListView>

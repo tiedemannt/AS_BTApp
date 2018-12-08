@@ -2,6 +2,8 @@ package de.fhmue.tobxtreme.v2;
 
 import android.Manifest;
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.le.ScanResult;
+import android.bluetooth.le.ScanSettings;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -15,7 +17,11 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.MenuItem;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.le.ScanCallback;
 import android.widget.Toast;
+
+import java.util.ArrayList;
+import java.util.List;
 
 
 public class MainActivity extends AppCompatActivity
@@ -112,13 +118,15 @@ public class MainActivity extends AppCompatActivity
         if(!m_btadapter.isEnabled())
         {
             Log.d(TAG, "startScan(): Enabling Bluetooth...");
-            Toast.makeText(this, "Enabling Bluetooth...", Toast.LENGTH_SHORT).show();
+            //Toast.makeText(this, "Enabling Bluetooth...", Toast.LENGTH_SHORT).show();
 
             Intent enableBTintent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
             startActivity(enableBTintent);
 
             IntentFilter btActFilter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
             registerReceiver(mBluetoothEnabledReceiver, btActFilter);
+
+            return;
         }
 
         if(m_activeFragment instanceof ConnectionFragment)
@@ -134,10 +142,21 @@ public class MainActivity extends AppCompatActivity
             checkBTPermissions();
 
             Log.d(TAG, "startScan(): Starting Discovery.");
-            m_btadapter.startDiscovery();
+
+            if(((ConnectionFragment)m_activeFragment).getIsLEScanCheckBoxChecked())
+            {
+                //LE Scan
+                m_btadapter.getBluetoothLeScanner().startScan(mLeScanCallback);
+            }
+            else
+            {
+                //Regular Scan
+                m_btadapter.startDiscovery();
+                IntentFilter discoverDevicesIntent = new IntentFilter(BluetoothDevice.ACTION_FOUND);
+                registerReceiver(mDeviceFoundReceiver, discoverDevicesIntent);
+            }
+            ((ConnectionFragment)m_activeFragment).setScanActive(true);
             Toast.makeText(this, "Starting Discovery...", Toast.LENGTH_SHORT).show();
-            IntentFilter discoverDevicesIntent = new IntentFilter(BluetoothDevice.ACTION_FOUND);
-            registerReceiver(mDeviceFoundReceiver, discoverDevicesIntent);
         }
         else
         {
@@ -180,6 +199,11 @@ public class MainActivity extends AppCompatActivity
         @Override
         public void onReceive(Context context, Intent intent)
         {
+            if(!m_btadapter.isDiscovering())
+            {
+                unregisterReceiver(mDeviceFoundReceiver);
+                return;
+            }
             final String action = intent.getAction();
             Log.d(TAG, "onReceive(): ACTION FOUND.");
 
@@ -188,7 +212,7 @@ public class MainActivity extends AppCompatActivity
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                 if((m_activeFragment instanceof ConnectionFragment))
                 {
-                    ((ConnectionFragment)m_activeFragment).addDevice(device);
+                    ((ConnectionFragment)m_activeFragment).addDevice(new BT_Device(device, 0));
                 }
                 else
                 {
@@ -201,14 +225,68 @@ public class MainActivity extends AppCompatActivity
     public void stopScan()
     {
         Log.d(TAG, "stopScan(): called.");
+
         if(m_btadapter.isDiscovering())
         {
             Log.d(TAG, "stopScan(): Cancelling Discovery.");
             m_btadapter.cancelDiscovery();
             Toast.makeText(this, "Cancelling Discovery...", Toast.LENGTH_SHORT).show();
         }
-    }
+        else
+        {
+            m_btadapter.getBluetoothLeScanner().stopScan(mLeScanCallback);
+        }
 
+        if(m_activeFragment instanceof ConnectionFragment) {
+            ((ConnectionFragment) m_activeFragment).setScanActive(false);
+        }
+    }
+    private ScanCallback mLeScanCallback = new ScanCallback() {
+        @Override
+        public void onScanResult(int callbackType, ScanResult result) {
+            if(callbackType == ScanSettings.CALLBACK_TYPE_MATCH_LOST)
+            {
+                //Match lost
+                Log.d(TAG, "onScanResult: lost Device " + result.toString());
+                Toast.makeText(getApplicationContext(), "Lost: " + result.getDevice().getAddress(), Toast.LENGTH_SHORT).show();
+                ((ConnectionFragment)m_activeFragment).removeDevice(new BT_Device(result.getDevice(), result.getRssi()));
+            }
+            else
+            {
+                //New Device found?
+                if(!((ConnectionFragment)m_activeFragment).getDeviceList().contains(new BT_Device(result.getDevice(), result.getRssi())))
+                {
+                    Log.d(TAG, "onScanResult: found Device " + result.toString());
+
+                    if((m_activeFragment instanceof ConnectionFragment)){
+                        BT_Device newDevice = new BT_Device(result.getDevice(), result.getRssi());
+                        ((ConnectionFragment)m_activeFragment).addDevice(newDevice);
+                    }
+                    else {
+                        Log.d(TAG, "onReceive(): ConnectionFragment not active.");
+                        m_btadapter.getBluetoothLeScanner().stopScan(mLeScanCallback);
+                    }
+                }
+                else
+                {
+                    //Device bereits in Liste
+                    Log.d(TAG, "onScanResult: Device bereits in Liste.");
+                }
+            }
+        }
+
+        @Override
+        public void onScanFailed(int errorCode) {
+            Log.d(TAG, "onScanFailed: " + errorCode);
+            Toast.makeText(getApplicationContext(), "BTLE Scan Failed: " + errorCode, Toast.LENGTH_SHORT).show();
+        }
+
+        @Override
+        public void onBatchScanResults(List<ScanResult> results) {
+            Log.d(TAG, "onBatchScanResults: ...");
+            Toast.makeText(getApplicationContext(), "onBatchScanResults: ..." , Toast.LENGTH_SHORT).show();
+        }
+    };
 
 
     /**
