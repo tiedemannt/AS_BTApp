@@ -3,51 +3,68 @@
     android:layout_width="match_parent" android:layout_height="match_parent"
     android:background="@android:color/background_light">
 
-    <!--<TextView-->
-        <!--android:layout_width="wrap_content"-->
-        <!--android:layout_height="wrap_content"-->
-        <!--android:text="Connection Fragment"-->
-        <!--android:textSize="30dp"-->
-        <!--android:layout_centerInParent="true"-->
-        <!--/>-->
-    <CheckBox
+    <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginLeft="10dp"
-        android:layout_marginTop="10dp"
+        android:text="Bitte Device auswählen:"
         android:layout_alignParentTop="true"
-        android:layout_alignParentLeft="true"
-        android:text="BTLE Scan"
-        android:id="@+id/connection_fragment_checkBox"/>
+        android:layout_marginTop="10dp"
+        android:id="@+id/connection_fragment_textView"
+        android:layout_marginLeft="10dp"
+        />
 
     <View
+        android:id="@+id/connection_fragment_viewLine2"
         android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:layout_below="@+id/connection_fragment_switch"
-        android:layout_marginTop="10dp"
-        android:background="@android:color/darker_gray"/>
-
-
-    <Switch
-        android:id="@+id/connection_fragment_switch"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginRight="10dp"
-        android:layout_marginTop="10dp"
-        android:layout_alignParentTop="true"
-        android:layout_alignParentRight="true"
-        android:text="Suche   "
+        android:layout_height="1.5dp"
+        android:layout_marginTop="-10dp"
+        android:layout_alignTop="@+id/connection_fragment_listView"
+        android:background="@android:color/darker_gray"
         />
 
     <ListView
+        android:id="@+id/connection_fragment_listView"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:id="@+id/connection_fragment_listView"
-        android:layout_below="@+id/connection_fragment_switch"
-        android:layout_marginTop="20dp"
-        android:layout_marginBottom="10dp"
+        android:layout_above="@+id/connection_fragment_viewLine"
+        android:layout_alignTop="@+id/connection_fragment_textView"
+        android:layout_marginTop="40dp"
+        android:layout_marginBottom="20dp"
         >
     </ListView>
+
+    <View
+        android:id="@+id/connection_fragment_viewLine"
+        android:layout_width="match_parent"
+        android:layout_height="1.5dp"
+        android:layout_marginTop="-10dp"
+        android:layout_alignTop="@+id/connection_fragment_scanButton"
+        android:background="@android:color/darker_gray"
+        />
+
+    <Button
+        android:id="@+id/connection_fragment_scanButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Retry Scan"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="10dp"
+        android:enabled="false"
+        />
+
+    <ProgressBar
+        android:id="@+id/connection_fragment_activityIndicator"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentRight="true"
+        android:layout_marginTop="10dp"
+        android:layout_marginRight="10dp"
+        android:indeterminateOnly="true"
+        android:keepScreenOn="true"
+        android:progressTint="@color/colorPrimary"
+        android:visibility="visible" />
 
 
 </RelativeLayout>

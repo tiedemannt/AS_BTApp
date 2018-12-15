@@ -11,8 +11,10 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
+import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.ListView;
+import android.widget.ProgressBar;
 import android.widget.Switch;
 import android.widget.Toast;
 
@@ -24,20 +26,23 @@ public class ConnectionFragment extends Fragment {
      */
     private static final String TAG = "ConnectionFragment";
 
-    private CheckBox                    m_checkBox;             //Checkbox LE Scan
     private ListView                    m_listView;             //Listview Devices
     private ListAdapter_BTLE_Devices    m_adapter;              //Listadapter
     private ArrayList<BT_Device>        m_BTDevicesArrayList;   //Device Arraylist Data
-    private Switch                      m_switch;               //Switch Button
     private boolean                     m_scanActive;           //Flag, ob gerade Scan aktiv
+    private Button                      m_scanButton;           //Button Retry Scan
+    private ProgressBar                 m_progressBar;          //ProgressBar ActivityIndicator
 
 
     /**
      *  GETTER/SETTER
      */
-    public boolean getIsLEScanCheckBoxChecked() {return m_checkBox.isChecked();}
     public ArrayList<BT_Device> getDeviceList() {return m_BTDevicesArrayList;}
-    public void setScanActive(boolean isActive){m_scanActive = isActive;}
+    public void setScanActive(boolean isActive){
+        m_scanActive = isActive;
+        m_progressBar.setIndeterminate(isActive);
+        m_scanButton.setEnabled(!isActive);
+    }
 
     /**
      *  INTERFACE
@@ -109,17 +114,16 @@ public class ConnectionFragment extends Fragment {
         /**
          * Get UI-Items from Layout
          */
-        m_switch = v.findViewById(R.id.connection_fragment_switch);
+        m_scanButton = v.findViewById(R.id.connection_fragment_scanButton);
         m_listView = v.findViewById(R.id.connection_fragment_listView);
-        m_checkBox = v.findViewById(R.id.connection_fragment_checkBox);
+        m_progressBar = v.findViewById(R.id.connection_fragment_activityIndicator);
 
         /**
          * Init UI-Items
          */
-        m_switch.setOnClickListener(m_switchListener);
         m_listView.setAdapter(m_adapter);
         m_listView.setOnItemClickListener(m_itemClickListener);
-        m_checkBox.setOnClickListener(m_checkBoxClickListener);
+        m_progressBar.setIndeterminate(true);
 
         return v;
     }
@@ -129,31 +133,11 @@ public class ConnectionFragment extends Fragment {
      */
     private AdapterView.OnItemClickListener m_itemClickListener = (adapterView, view, i, l) -> {
         if(m_scanActive) m_Callback.stopScan(); //Aktuellen Scan stoppen
-        m_switch.setChecked(false);
+        //m_switch.setChecked(false);
 
         /**
          *   Item, auf das geklickt wurde, verarbeiten: (Position in Liste: i)
          */
         Toast.makeText(getActivity(), "Item clicked: i " + i + ", l " + l, Toast.LENGTH_SHORT).show();
-    };
-    private CheckBox.OnClickListener m_checkBoxClickListener = new CheckBox.OnClickListener(){
-        @Override
-        public void onClick(View view) {
-            if(m_scanActive) m_Callback.stopScan(); //Aktuellen Scan stoppen
-            m_switch.setChecked(false);
-        }
-    };
-    private Switch.OnClickListener m_switchListener = new Switch.OnClickListener(){
-        @Override
-        public void onClick(View view) {
-            if(m_switch.isChecked())
-            {
-                m_Callback.startScan();
-            }
-            else
-            {
-                m_Callback.stopScan();
-            }
-        }
     };
 }

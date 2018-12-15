@@ -9,16 +9,14 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Build;
-import android.support.annotation.NonNull;
-import android.support.design.widget.BottomNavigationView;
+//import android.support.design.widget.BottomNavigationView;
 import android.support.v4.app.Fragment;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.MenuItem;
-import android.bluetooth.BluetoothDevice;
 import android.bluetooth.le.ScanCallback;
 import android.widget.Toast;
+import android.os.Handler;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,11 +34,15 @@ public class MainActivity extends AppCompatActivity
      * CONSTANTS
      */
     private static final String TAG = "MainActivity";
+    private static final long CONST_SCAN_PERIOD = 10000;  //Dauer für den Scanvorgang
+
+
     /**
      *   OBJECTS
      */
     private Fragment            m_activeFragment;
     private BluetoothAdapter    m_btadapter;
+    private Handler             m_handler;
 
 
     /**
@@ -52,54 +54,56 @@ public class MainActivity extends AppCompatActivity
         setContentView(R.layout.activity_main);
 
         //Bottomnavigationview einrichten:
-        BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
-        bottomNav.setOnNavigationItemSelectedListener(navListener);
+        //BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
+        //bottomNav.setOnNavigationItemSelectedListener(navListener);
 
-        //Home Fragment bei Start öffnen:
+        //Connection Fragment bei Start öffnen:
         getSupportFragmentManager().beginTransaction().replace(
-                R.id.fragment_container, new HomeFragment()).commit();
+                R.id.fragment_container, new ConnectionFragment()).commit();
 
         //Titel der Activity setzen
-        setTitle("LUFTGUETESENSORIK");
+        setTitle("LUFTGÜTESENSORIK");
 
         m_btadapter = BluetoothAdapter.getDefaultAdapter();
+
+        //startScan(); //-> Funktioniert auf Emulator nicht
 
 
         Log.d(TAG, "MainActivity::onCreate(): finished.");
     }
 
-    /**
-     * Handler für BottomnavigationView
-     */
-    private BottomNavigationView.OnNavigationItemSelectedListener navListener =
-            new BottomNavigationView.OnNavigationItemSelectedListener()
-            {
-                @Override
-                public boolean onNavigationItemSelected(@NonNull MenuItem menuItem) {
-                    Fragment selectedFragment = null;
-
-                    switch (menuItem.getItemId()) {
-                        case R.id.nav_home:
-                            selectedFragment = new HomeFragment();
-                            Log.d(TAG, "onNavigationItemSelected(): HomeFragment selected.");
-                            break;
-                        case R.id.nav_connection:
-                            selectedFragment = new ConnectionFragment();
-                            Log.d(TAG, "onNavigationItemSelected(): ConnectionFragment selected.");
-                            break;
-                        case R.id.nav_view:
-                            selectedFragment = new ViewFragment();
-                            Log.d(TAG, "onNavigationItemSelected(): ViewFragment selected.");
-                            break;
-                    }
-
-                    m_activeFragment = selectedFragment;
-                    getSupportFragmentManager().beginTransaction().replace(
-                            R.id.fragment_container, selectedFragment).commit();
-
-                    return true; //Item soll selected werden
-                }
-            };
+//    /**
+//     * Handler für BottomnavigationView
+//     */
+//    private BottomNavigationView.OnNavigationItemSelectedListener navListener =
+//            new BottomNavigationView.OnNavigationItemSelectedListener()
+//            {
+//                @Override
+//                public boolean onNavigationItemSelected(@NonNull MenuItem menuItem) {
+//                    Fragment selectedFragment = null;
+//
+//                    switch (menuItem.getItemId()) {
+//                        case R.id.nav_home:
+//                            selectedFragment = new HomeFragment();
+//                            Log.d(TAG, "onNavigationItemSelected(): HomeFragment selected.");
+//                            break;
+//                        case R.id.nav_connection:
+//                            selectedFragment = new ConnectionFragment();
+//                            Log.d(TAG, "onNavigationItemSelected(): ConnectionFragment selected.");
+//                            break;
+//                        case R.id.nav_view:
+//                            selectedFragment = new ViewFragment();
+//                            Log.d(TAG, "onNavigationItemSelected(): ViewFragment selected.");
+//                            break;
+//                    }
+//
+//                    m_activeFragment = selectedFragment;
+//                    getSupportFragmentManager().beginTransaction().replace(
+//                            R.id.fragment_container, selectedFragment).commit();
+//
+//                    return true; //Item soll selected werden
+//                }
+//            };
 
 
     /**
@@ -132,30 +136,18 @@ public class MainActivity extends AppCompatActivity
         if(m_activeFragment instanceof ConnectionFragment)
         {
             ((ConnectionFragment)m_activeFragment).clearDeviceList();
-            if(m_btadapter.isDiscovering())
-            {
-                Log.d(TAG, "startScan(): Cancelling Discovery.");
-                m_btadapter.cancelDiscovery();
-            }
 
             //Check BT Permissions Manifest
             checkBTPermissions();
 
             Log.d(TAG, "startScan(): Starting Discovery.");
 
-            if(((ConnectionFragment)m_activeFragment).getIsLEScanCheckBoxChecked())
-            {
-                //LE Scan
-                m_btadapter.getBluetoothLeScanner().startScan(mLeScanCallback);
-            }
-            else
-            {
-                //Regular Scan
-                m_btadapter.startDiscovery();
-                IntentFilter discoverDevicesIntent = new IntentFilter(BluetoothDevice.ACTION_FOUND);
-                registerReceiver(mDeviceFoundReceiver, discoverDevicesIntent);
-            }
+            //LE Scan Start
+            m_btadapter.getBluetoothLeScanner().startScan(mLeScanCallback);
             ((ConnectionFragment)m_activeFragment).setScanActive(true);
+
+            m_handler.postDelayed(()-> stopScan(), CONST_SCAN_PERIOD);
+
             Toast.makeText(this, "Starting Discovery...", Toast.LENGTH_SHORT).show();
         }
         else
@@ -195,47 +187,11 @@ public class MainActivity extends AppCompatActivity
             }
         }
     };
-    private BroadcastReceiver mDeviceFoundReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent)
-        {
-            if(!m_btadapter.isDiscovering())
-            {
-                unregisterReceiver(mDeviceFoundReceiver);
-                return;
-            }
-            final String action = intent.getAction();
-            Log.d(TAG, "onReceive(): ACTION FOUND.");
-
-            if(action.equals(BluetoothDevice.ACTION_FOUND))
-            {
-                BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                if((m_activeFragment instanceof ConnectionFragment))
-                {
-                    ((ConnectionFragment)m_activeFragment).addDevice(new BT_Device(device, 0));
-                }
-                else
-                {
-                    Log.d(TAG, "onReceive(): ConnectionFragment not active.");
-                    stopScan();
-                }
-            }
-        }
-    };
     public void stopScan()
     {
         Log.d(TAG, "stopScan(): called.");
 
-        if(m_btadapter.isDiscovering())
-        {
-            Log.d(TAG, "stopScan(): Cancelling Discovery.");
-            m_btadapter.cancelDiscovery();
-            Toast.makeText(this, "Cancelling Discovery...", Toast.LENGTH_SHORT).show();
-        }
-        else
-        {
-            m_btadapter.getBluetoothLeScanner().stopScan(mLeScanCallback);
-        }
+        m_btadapter.getBluetoothLeScanner().stopScan(mLeScanCallback);
 
         if(m_activeFragment instanceof ConnectionFragment) {
             ((ConnectionFragment) m_activeFragment).setScanActive(false);
