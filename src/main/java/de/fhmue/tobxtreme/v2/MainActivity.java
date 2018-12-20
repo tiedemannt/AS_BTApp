@@ -2,8 +2,11 @@ package de.fhmue.tobxtreme.v2;
 
 import android.Manifest;
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothProfile;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
+import android.bluetooth.BluetoothGattCallback;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -15,6 +18,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.bluetooth.le.ScanCallback;
+import android.view.View;
 import android.widget.Toast;
 import android.os.Handler;
 
@@ -35,14 +39,21 @@ public class MainActivity extends AppCompatActivity
      */
     private static final String TAG = "MainActivity";
     private static final long CONST_SCAN_PERIOD = 10000;  //Dauer für den Scanvorgang
+    private static final int STATE_DISCONNECTED = 0;
+    private static final int STATE_CONNECTING = 1;
+    private static final int STATE_CONNECTED = 2;
 
 
     /**
      *   OBJECTS
      */
-    private Fragment            m_activeFragment;
-    private BluetoothAdapter    m_btadapter;
-    private Handler             m_handler;
+    private Fragment            m_activeFragment;         //Fragment Object
+    private BluetoothAdapter    m_btadapter;              //Bluetooth Adapter Object
+    private Handler             m_handler;                //Handler Object
+    private BluetoothGatt       m_bluetoothGATTObject;    //GATT Object
+    private int m_connectionState = STATE_DISCONNECTED;   //Connection State GATT
+
+
 
 
     /**
@@ -58,15 +69,22 @@ public class MainActivity extends AppCompatActivity
         //bottomNav.setOnNavigationItemSelectedListener(navListener);
 
         //Connection Fragment bei Start öffnen:
+        m_activeFragment = new ConnectionFragment();
         getSupportFragmentManager().beginTransaction().replace(
-                R.id.fragment_container, new ConnectionFragment()).commit();
+                R.id.fragment_container, m_activeFragment).commit();
 
         //Titel der Activity setzen
         setTitle("LUFTGÜTESENSORIK");
 
         m_btadapter = BluetoothAdapter.getDefaultAdapter();
-
-        //startScan(); //-> Funktioniert auf Emulator nicht
+        if(m_btadapter != null) //Gibt es einen Adapter?
+        {
+            startScan();
+        }
+        else
+        {
+            Toast.makeText(this, "Bluetoothadapter nicht gefunden!", Toast.LENGTH_LONG).show();
+        }
 
 
         Log.d(TAG, "MainActivity::onCreate(): finished.");
@@ -107,7 +125,8 @@ public class MainActivity extends AppCompatActivity
 
 
     /**
-     *   Interface Funktionen mit Connection Fragment
+     *  -Method implemented from Interface ConnectionFragmentInterface-
+     *  Start BTLE Scan
      */
     public void startScan()
     {
@@ -155,6 +174,10 @@ public class MainActivity extends AppCompatActivity
             throw new RuntimeException("Connection Fragment must be active.");
         }
     }
+
+    /**
+     * BroadcastReceiver Object for Intent: BluetoothAdapter.ACTION_STATE_CHANGED
+     */
     private BroadcastReceiver mBluetoothEnabledReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -187,6 +210,11 @@ public class MainActivity extends AppCompatActivity
             }
         }
     };
+
+    /**
+     * -Method implemented from Interface ConnectionFragmentInterface-
+     * Stop BTLE Scan
+     */
     public void stopScan()
     {
         Log.d(TAG, "stopScan(): called.");
@@ -197,6 +225,10 @@ public class MainActivity extends AppCompatActivity
             ((ConnectionFragment) m_activeFragment).setScanActive(false);
         }
     }
+
+    /**
+     * LE SCAN Callback Object
+     */
     private ScanCallback mLeScanCallback = new ScanCallback() {
         @Override
         public void onScanResult(int callbackType, ScanResult result) {
@@ -243,6 +275,85 @@ public class MainActivity extends AppCompatActivity
             Toast.makeText(getApplicationContext(), "onBatchScanResults: ..." , Toast.LENGTH_SHORT).show();
         }
     };
+
+    /**
+     * GATT Callback Object
+     */
+    private BluetoothGattCallback mGATTCallback = new BluetoothGattCallback(){
+        @Override
+        public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+            if(newState == BluetoothProfile.STATE_CONNECTED)
+            {
+                m_connectionState = STATE_CONNECTED;
+                Toast.makeText(getApplicationContext(), "Connected!", Toast.LENGTH_SHORT).show();
+                Log.i(TAG, "New State: STATE_CONNECTED");
+
+                m_bluetoothGATTObject.discoverServices();
+
+                //Fragment wechseln: Connection -> View
+                if(m_activeFragment instanceof ConnectionFragment)
+                {
+                    Log.i(TAG, "Connected, setting View Fragment");
+                    m_activeFragment = new ViewFragment();
+                    getSupportFragmentManager().beginTransaction().replace(
+                            R.id.fragment_container, m_activeFragment).commit();
+                }
+            }
+            else if(newState == BluetoothProfile.STATE_CONNECTING)
+            {
+                m_connectionState = STATE_CONNECTING;
+                Toast.makeText(getApplicationContext(), "Connecting...", Toast.LENGTH_SHORT).show();
+                Log.i(TAG, "New State: STATE_CONNECTING");
+            }
+            else if(newState == BluetoothProfile.STATE_DISCONNECTED)
+            {
+                m_connectionState = STATE_DISCONNECTED;
+                Toast.makeText(getApplicationContext(), "Disconnected!", Toast.LENGTH_SHORT).show();
+                Log.i(TAG, "New State: STATE_DISCONNECTED");
+
+                //Fragment wechseln: Connection
+                if(! (m_activeFragment instanceof ConnectionFragment))
+                {
+                    Log.i(TAG, "Disconnected, setting Connection Fragment");
+                    m_activeFragment = new ConnectionFragment();
+                    getSupportFragmentManager().beginTransaction().replace(
+                            R.id.fragment_container, m_activeFragment).commit();
+                }
+            }
+            else
+            {
+                Log.i(TAG, "New State: Unknown");
+            }
+        }
+        @Override
+        public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+            Log.i(TAG, "New Service discovered!");
+            if(m_activeFragment instanceof ViewFragment)
+            {
+                if(status == BluetoothGatt.GATT_SUCCESS)
+                {
+                    ((ViewFragment)m_activeFragment).addService(gatt);
+                }
+                else
+                {
+                    Log.i(TAG, "Status != GATT_SUCCESS");
+                }
+            }
+            else
+            {
+                Log.i(TAG, "ViewFragment is not active!");
+            }
+        }
+    };
+
+    /**
+     *  -Method implemented from Interface ConnectionFragmentInterface-
+     *  Device selected, connect to Device:
+     */
+    public void connectToDevice(BT_Device device) {
+        Log.i(TAG, "Connecting to Device: " + device.m_device.getAddress());
+        m_bluetoothGATTObject = device.m_device.connectGatt(this, false, mGATTCallback);
+    }
 
 
     /**

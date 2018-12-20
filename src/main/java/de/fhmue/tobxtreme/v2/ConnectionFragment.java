@@ -26,6 +26,10 @@ public class ConnectionFragment extends Fragment {
      */
     private static final String TAG = "ConnectionFragment";
 
+
+    /**
+     * OBJECTS
+     */
     private ListView                    m_listView;             //Listview Devices
     private ListAdapter_BTLE_Devices    m_adapter;              //Listadapter
     private ArrayList<BT_Device>        m_BTDevicesArrayList;   //Device Arraylist Data
@@ -41,6 +45,7 @@ public class ConnectionFragment extends Fragment {
     public void setScanActive(boolean isActive){
         m_scanActive = isActive;
         m_progressBar.setIndeterminate(isActive);
+        m_progressBar.setVisibility(View.VISIBLE);
         m_scanButton.setEnabled(!isActive);
     }
 
@@ -51,6 +56,7 @@ public class ConnectionFragment extends Fragment {
     {
         void startScan();
         void stopScan();
+        void connectToDevice(BT_Device device);
     }
     ConnectionFragmentInterface m_Callback;
 
@@ -123,7 +129,9 @@ public class ConnectionFragment extends Fragment {
          */
         m_listView.setAdapter(m_adapter);
         m_listView.setOnItemClickListener(m_itemClickListener);
-        m_progressBar.setIndeterminate(true);
+        m_progressBar.setIndeterminate(false);
+        m_progressBar.setVisibility(View.INVISIBLE);
+        m_scanButton.setEnabled(false);
 
         return v;
     }
@@ -133,11 +141,18 @@ public class ConnectionFragment extends Fragment {
      */
     private AdapterView.OnItemClickListener m_itemClickListener = (adapterView, view, i, l) -> {
         if(m_scanActive) m_Callback.stopScan(); //Aktuellen Scan stoppen
-        //m_switch.setChecked(false);
 
         /**
          *   Item, auf das geklickt wurde, verarbeiten: (Position in Liste: i)
+         *   -> Mit Device verbinden
          */
-        Toast.makeText(getActivity(), "Item clicked: i " + i + ", l " + l, Toast.LENGTH_SHORT).show();
+        BT_Device device = m_BTDevicesArrayList.get(i);
+        if(device.m_device.getAddress().isEmpty()) {
+            Log.i(TAG, "Adress of Device is empty!");
+            Toast.makeText(getActivity(), "Failed to Connect, Deviceadress is empty!", Toast.LENGTH_SHORT).show();
+        }
+        else {
+            m_Callback.connectToDevice(device);
+        }
     };
 }
