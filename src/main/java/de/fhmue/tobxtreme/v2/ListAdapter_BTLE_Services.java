@@ -2,6 +2,7 @@ package de.fhmue.tobxtreme.v2;
 
 import android.app.Activity;
 import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattCharacteristic;
 import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -10,20 +11,38 @@ import android.widget.TextView;
 import android.widget.ArrayAdapter;
 import android.bluetooth.BluetoothGattService;
 
-import java.util.List;
+import java.util.ArrayList;
 
 
-public class ListAdapter_BTLE_Services extends ArrayAdapter<BluetoothGattService> {
+
+public class ListAdapter_BTLE_Services extends ArrayAdapter<BluetoothGattCharacteristic> {
     Activity activity;
     int layoutResourceID;
     BluetoothGatt services;
+    ArrayList<BluetoothGattCharacteristic> m_characteristics;
 
     public ListAdapter_BTLE_Services(Activity activity, int resource, BluetoothGatt gattObj) {
-        super(activity.getApplicationContext(), resource);
+        super(activity.getApplicationContext(), resource, getCharacteristics(gattObj));
 
         this.activity = activity;
         layoutResourceID = resource;
         services = gattObj;
+        m_characteristics = getCharacteristics(gattObj);
+    }
+
+    public static ArrayList<BluetoothGattCharacteristic> getCharacteristics(BluetoothGatt gattObj)
+    {
+        ArrayList<BluetoothGattCharacteristic> list = new ArrayList();
+
+        for(BluetoothGattService service : gattObj.getServices())
+        {
+            for(BluetoothGattCharacteristic characteristic : service.getCharacteristics())
+            {
+                list.add(characteristic);
+            }
+        }
+
+        return list;
     }
 
     @Override
@@ -36,18 +55,27 @@ public class ListAdapter_BTLE_Services extends ArrayAdapter<BluetoothGattService
             convertView = inflater.inflate(layoutResourceID, parent, false);
         }
 
-        BluetoothGattService service = services.getServices().get(position);
+        String cuuid = m_characteristics.get(position).getUuid().toString();
+        String suuid = m_characteristics.get(position).getService().getUuid().toString();
 
         TextView tv = null;
 
         tv = convertView.findViewById(R.id.service_tv_name);
-        if (!service.toString().isEmpty()) {
-            tv.setText(service.toString());
+        if (!cuuid.isEmpty())
+        {
+            tv.setText(cuuid);
         }
         else {
-            tv.setText("No Name");
+            tv.setText("Characteristic " + position);
         }
 
+        tv = convertView.findViewById(R.id.service_tv_info);
+        if (!suuid.isEmpty()) {
+            tv.setText(suuid);
+        }
+        else {
+            tv.setText("No UUID found");
+        }
 
         return convertView;
     }

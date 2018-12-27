@@ -1,6 +1,5 @@
 package de.fhmue.tobxtreme.v2;
 
-import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
@@ -12,16 +11,26 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.Button;
-import android.widget.CheckBox;
 import android.widget.ListView;
 import android.widget.ProgressBar;
-import android.widget.Switch;
 import android.widget.Toast;
-import android.app.Activity;
+
 
 import java.util.ArrayList;
 
 public class ConnectionFragment extends Fragment {
+    /**
+     *  INTERFACE
+     */
+    public interface ConnectionFragmentInterface
+    {
+        void startScan();
+        void stopScan();
+        void connectToDevice(BT_Device device);
+    }
+    ConnectionFragmentInterface m_Callback;
+
+
     /**
      * CONSTANTS
      */
@@ -57,17 +66,6 @@ public class ConnectionFragment extends Fragment {
 
         m_scanButton.setEnabled(!isActive);
     }
-
-    /**
-     *  INTERFACE
-     */
-    public interface ConnectionFragmentInterface
-    {
-        void startScan();
-        void stopScan();
-        void connectToDevice(BT_Device device);
-    }
-    ConnectionFragmentInterface m_Callback;
 
     public void clearDeviceList()
     {
@@ -165,12 +163,9 @@ public class ConnectionFragment extends Fragment {
             m_Callback.connectToDevice(device);
         }
     };
-    private AdapterView.OnClickListener m_buttonClickListener = new View.OnClickListener() {
-        @Override
-        public void onClick(View v) {
-            if ( v.getId() == R.id.connection_fragment_scanButton) {
-                m_Callback.startScan();
-            }
+    private AdapterView.OnClickListener m_buttonClickListener = (View v) -> {
+        if ( v.getId() == R.id.connection_fragment_scanButton) {
+            m_Callback.startScan();
         }
     };
 }

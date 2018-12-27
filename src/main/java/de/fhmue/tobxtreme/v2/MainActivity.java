@@ -6,6 +6,7 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
+import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothProfile;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
@@ -27,6 +28,7 @@ import android.os.Handler;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 
 public class MainActivity extends AppCompatActivity
@@ -34,17 +36,21 @@ public class MainActivity extends AppCompatActivity
     /**
      *  IMPLEMENTS
      */
-    implements ConnectionFragment.ConnectionFragmentInterface
+    implements
+        ConnectionFragment.ConnectionFragmentInterface,
+        ViewFragment.ViewFragmentInterface
 {
 
     /**
      * CONSTANTS
      */
     private static final String TAG = "MainActivity";
-    private static final long CONST_SCAN_PERIOD = 5000;  //Dauer für den Scanvorgang
+    private static final long CONST_SCAN_PERIOD = 7500;  //Dauer für den Scanvorgang
     private static final int STATE_DISCONNECTED = 0;
     private static final int STATE_CONNECTING = 1;
     private static final int STATE_CONNECTED = 2;
+
+    private static final UUID DESCRIPTOR_CONFIG_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
 
 
     /**
@@ -55,6 +61,7 @@ public class MainActivity extends AppCompatActivity
     private Handler             m_handler;                //Handler Object
     private BluetoothGatt       m_bluetoothGATTObject;    //GATT Object
     private int m_connectionState = STATE_DISCONNECTED;   //Connection State GATT
+    private ArrayList<BluetoothGattCharacteristic> m_subscribedCharacteristics; //Subscribed Characteristics
 
 
     /**
@@ -88,11 +95,24 @@ public class MainActivity extends AppCompatActivity
             Toast.makeText(this, "Bluetoothadapter nicht gefunden!", Toast.LENGTH_LONG).show();
         }
 
+        m_subscribedCharacteristics = new ArrayList();
+
 
         Log.d(TAG, "MainActivity::onCreate(): finished.");
     }
 
-//    /**
+    @Override
+    protected void onDestroy() {
+        if(m_connectionState == STATE_CONNECTED)
+        {
+            m_bluetoothGATTObject.close();
+            m_bluetoothGATTObject = null;
+        }
+
+        super.onDestroy();
+    }
+
+    //    /**
 //     * Handler für BottomnavigationView
 //     */
 //    private BottomNavigationView.OnNavigationItemSelectedListener navListener =
@@ -222,6 +242,63 @@ public class MainActivity extends AppCompatActivity
             ((ConnectionFragment) m_activeFragment).setScanActive(false);
         }
     }
+    /**
+     * -Methods implemented from Interface ViewFragmentInterface-
+     * Subscribe/Unsubscribe To Characteristic
+     */
+    public void subscribeToCharacteristic(BluetoothGattCharacteristic characteristic)
+    {
+        // Enable notifications for this characteristic locally
+        m_bluetoothGATTObject.setCharacteristicNotification(characteristic, true);
+
+        // Write on the config descriptor to be notified when the value changes
+        BluetoothGattDescriptor descriptor = characteristic.getDescriptor(DESCRIPTOR_CONFIG_UUID);
+        if(descriptor != null)
+        {
+            descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+            m_bluetoothGATTObject.writeDescriptor(descriptor);
+
+            m_subscribedCharacteristics.add(characteristic);
+        }
+        else
+        {
+            Toast.makeText(MainActivity.this,
+                    "Cannot subscribe to selected characteristic",
+                    Toast.LENGTH_SHORT).show();
+        }
+    }
+    public void unsubscribeAllCharacteristics()
+    {
+        for(BluetoothGattCharacteristic characteristic : m_subscribedCharacteristics)
+        {
+            //Disable Local notifications
+            m_bluetoothGATTObject.setCharacteristicNotification(characteristic, false);
+        }
+        m_subscribedCharacteristics.clear();
+    }
+    public void disconnectFromDevice()
+    {
+        if (m_connectionState == STATE_CONNECTED)
+        {
+            m_bluetoothGATTObject.close();
+
+            m_connectionState = STATE_DISCONNECTED;
+            Log.i(TAG, "New State: STATE_DISCONNECTED");
+            Toast.makeText(MainActivity.this, "Disconnected!", Toast.LENGTH_SHORT).show();
+
+            //Fragment wechseln: Connection
+            if(! (m_activeFragment instanceof ConnectionFragment))
+            {
+                Log.i(TAG, "Disconnected, setting Connection Fragment");
+                Fragment nextFragment = new ConnectionFragment();
+                m_activeFragment = nextFragment;
+                getSupportFragmentManager().beginTransaction().replace(
+                        R.id.fragment_container, nextFragment).commit();
+
+                m_handler.postDelayed(() -> startScan(), 1000);
+            }
+        }
+    }
 
     /**
      * LE SCAN Callback Object
@@ -306,8 +383,8 @@ public class MainActivity extends AppCompatActivity
             else if(newState == BluetoothProfile.STATE_DISCONNECTED)
             {
                 m_connectionState = STATE_DISCONNECTED;
-                Toast.makeText(MainActivity.this, "Disconnected!", Toast.LENGTH_SHORT).show();
                 Log.i(TAG, "New State: STATE_DISCONNECTED");
+                Toast.makeText(MainActivity.this, "Disconnected!", Toast.LENGTH_SHORT).show();
 
                 //Fragment wechseln: Connection
                 if(! (m_activeFragment instanceof ConnectionFragment))
@@ -328,12 +405,24 @@ public class MainActivity extends AppCompatActivity
         }
         @Override
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
-            Log.i(TAG, "New Service discovered!");
+            Log.i(TAG, "Services discovered!");
             if(m_activeFragment instanceof ViewFragment)
             {
                 if(status == BluetoothGatt.GATT_SUCCESS)
                 {
+                    Log.i(TAG, "----------------- Looking for Characteristics in found Services: ------------------");
+                    for(int i = 0; i < gatt.getServices().size(); i++) {
+                        for (BluetoothGattCharacteristic characteristic : gatt.getServices().get(i).getCharacteristics()) {
+                            Log.i(TAG, "Characteristic in Service " + i + " found: " + characteristic.toString());
+                        }
+                    }
+                    Log.i(TAG, "----------------- ALL CHARACTERISTICS SHOWN ABOVE ------------------");
+
                     ((ViewFragment)m_activeFragment).addService(gatt);
+
+                    //m_bluetoothGATTObject.setCharacteristicNotification(characteristic, true);
+                    //Log.i(TAG, "Subscribed to Characteristic: " + characteristic.toString());
+
                 }
                 else
                 {
@@ -346,10 +435,18 @@ public class MainActivity extends AppCompatActivity
             }
         }
 
+        /**
+         * Once notifications are enabled for a characteristic, an onCharacteristicChanged() callback
+         * is triggered if the characteristic changes on the remote device:
+         */
         @Override
         public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
-            Log.i(TAG, "onCharacteristicChanged");
-            super.onCharacteristicChanged(gatt, characteristic);
+            Log.i(TAG, "onCharacteristicChanged: " + characteristic.toString());
+
+            if(m_activeFragment instanceof ViewFragment)
+            {
+                ((ViewFragment)m_activeFragment).displayCharacteristicValue(characteristic);
+            }
         }
 
         @Override
