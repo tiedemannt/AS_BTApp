@@ -17,8 +17,9 @@ import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.Switch;
 import android.widget.Toast;
+import android.app.Activity;
 
-import java.util.*;
+import java.util.ArrayList;
 
 public class ConnectionFragment extends Fragment {
     /**
@@ -45,7 +46,15 @@ public class ConnectionFragment extends Fragment {
     public void setScanActive(boolean isActive){
         m_scanActive = isActive;
         m_progressBar.setIndeterminate(isActive);
-        m_progressBar.setVisibility(View.VISIBLE);
+        if(isActive)
+        {
+            m_progressBar.setVisibility(View.VISIBLE);
+        }
+        else
+        {
+            m_progressBar.setVisibility(View.INVISIBLE);
+        }
+
         m_scanButton.setEnabled(!isActive);
     }
 
@@ -132,6 +141,7 @@ public class ConnectionFragment extends Fragment {
         m_progressBar.setIndeterminate(false);
         m_progressBar.setVisibility(View.INVISIBLE);
         m_scanButton.setEnabled(false);
+        m_scanButton.setOnClickListener(m_buttonClickListener);
 
         return v;
     }
@@ -153,6 +163,14 @@ public class ConnectionFragment extends Fragment {
         }
         else {
             m_Callback.connectToDevice(device);
+        }
+    };
+    private AdapterView.OnClickListener m_buttonClickListener = new View.OnClickListener() {
+        @Override
+        public void onClick(View v) {
+            if ( v.getId() == R.id.connection_fragment_scanButton) {
+                m_Callback.startScan();
+            }
         }
     };
 }

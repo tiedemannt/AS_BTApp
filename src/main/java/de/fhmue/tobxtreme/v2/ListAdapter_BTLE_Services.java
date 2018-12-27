@@ -1,6 +1,7 @@
 package de.fhmue.tobxtreme.v2;
 
 import android.app.Activity;
+import android.bluetooth.BluetoothGatt;
 import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -15,14 +16,14 @@ import java.util.List;
 public class ListAdapter_BTLE_Services extends ArrayAdapter<BluetoothGattService> {
     Activity activity;
     int layoutResourceID;
-    List<BluetoothGattService> services;
+    BluetoothGatt services;
 
-    public ListAdapter_BTLE_Services(Activity activity, int resource, List<BluetoothGattService> objects) {
-        super(activity.getApplicationContext(), resource, objects);
+    public ListAdapter_BTLE_Services(Activity activity, int resource, BluetoothGatt gattObj) {
+        super(activity.getApplicationContext(), resource);
 
         this.activity = activity;
         layoutResourceID = resource;
-        services = objects;
+        services = gattObj;
     }
 
     @Override
@@ -35,7 +36,7 @@ public class ListAdapter_BTLE_Services extends ArrayAdapter<BluetoothGattService
             convertView = inflater.inflate(layoutResourceID, parent, false);
         }
 
-        BluetoothGattService service = services.get(position);
+        BluetoothGattService service = services.getServices().get(position);
 
         TextView tv = null;
 

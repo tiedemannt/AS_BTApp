@@ -1,8 +1,11 @@
 package de.fhmue.tobxtreme.v2;
 
 import android.Manifest;
+import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothProfile;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
@@ -38,7 +41,7 @@ public class MainActivity extends AppCompatActivity
      * CONSTANTS
      */
     private static final String TAG = "MainActivity";
-    private static final long CONST_SCAN_PERIOD = 10000;  //Dauer für den Scanvorgang
+    private static final long CONST_SCAN_PERIOD = 5000;  //Dauer für den Scanvorgang
     private static final int STATE_DISCONNECTED = 0;
     private static final int STATE_CONNECTING = 1;
     private static final int STATE_CONNECTED = 2;
@@ -52,8 +55,6 @@ public class MainActivity extends AppCompatActivity
     private Handler             m_handler;                //Handler Object
     private BluetoothGatt       m_bluetoothGATTObject;    //GATT Object
     private int m_connectionState = STATE_DISCONNECTED;   //Connection State GATT
-
-
 
 
     /**
@@ -79,7 +80,8 @@ public class MainActivity extends AppCompatActivity
         m_btadapter = BluetoothAdapter.getDefaultAdapter();
         if(m_btadapter != null) //Gibt es einen Adapter?
         {
-            startScan();
+            m_handler = new Handler();
+            m_handler.postDelayed(() -> startScan(), 1000);
         }
         else
         {
@@ -132,12 +134,6 @@ public class MainActivity extends AppCompatActivity
     {
         Log.d(TAG, "startScan(): called.");
 
-        if(m_btadapter == null)
-        {
-            //Emuliert oder BT-Adapter nicht gefunden?
-            throw new RuntimeException("BluetoothAdapter : NullObject.");
-        }
-
         if(!m_btadapter.isEnabled())
         {
             Log.d(TAG, "startScan(): Enabling Bluetooth...");
@@ -165,6 +161,7 @@ public class MainActivity extends AppCompatActivity
             m_btadapter.getBluetoothLeScanner().startScan(mLeScanCallback);
             ((ConnectionFragment)m_activeFragment).setScanActive(true);
 
+            m_handler = new Handler();
             m_handler.postDelayed(()-> stopScan(), CONST_SCAN_PERIOD);
 
             Toast.makeText(this, "Starting Discovery...", Toast.LENGTH_SHORT).show();
@@ -236,7 +233,7 @@ public class MainActivity extends AppCompatActivity
             {
                 //Match lost
                 Log.d(TAG, "onScanResult: lost Device " + result.toString());
-                Toast.makeText(getApplicationContext(), "Lost: " + result.getDevice().getAddress(), Toast.LENGTH_SHORT).show();
+                Toast.makeText(MainActivity.this, "Lost: " + result.getDevice().getAddress(), Toast.LENGTH_SHORT).show();
                 ((ConnectionFragment)m_activeFragment).removeDevice(new BT_Device(result.getDevice(), result.getRssi()));
             }
             else
@@ -285,7 +282,7 @@ public class MainActivity extends AppCompatActivity
             if(newState == BluetoothProfile.STATE_CONNECTED)
             {
                 m_connectionState = STATE_CONNECTED;
-                Toast.makeText(getApplicationContext(), "Connected!", Toast.LENGTH_SHORT).show();
+                //Toast.makeText(MainActivity.this, "Connected!", Toast.LENGTH_SHORT).show();
                 Log.i(TAG, "New State: STATE_CONNECTED");
 
                 m_bluetoothGATTObject.discoverServices();
@@ -294,30 +291,34 @@ public class MainActivity extends AppCompatActivity
                 if(m_activeFragment instanceof ConnectionFragment)
                 {
                     Log.i(TAG, "Connected, setting View Fragment");
-                    m_activeFragment = new ViewFragment();
+                    Fragment nextFragment = new ViewFragment();
+                    m_activeFragment = nextFragment;
                     getSupportFragmentManager().beginTransaction().replace(
-                            R.id.fragment_container, m_activeFragment).commit();
+                            R.id.fragment_container, nextFragment).commit();
                 }
             }
             else if(newState == BluetoothProfile.STATE_CONNECTING)
             {
                 m_connectionState = STATE_CONNECTING;
-                Toast.makeText(getApplicationContext(), "Connecting...", Toast.LENGTH_SHORT).show();
+                Toast.makeText(MainActivity.this, "Connecting...", Toast.LENGTH_SHORT).show();
                 Log.i(TAG, "New State: STATE_CONNECTING");
             }
             else if(newState == BluetoothProfile.STATE_DISCONNECTED)
             {
                 m_connectionState = STATE_DISCONNECTED;
-                Toast.makeText(getApplicationContext(), "Disconnected!", Toast.LENGTH_SHORT).show();
+                Toast.makeText(MainActivity.this, "Disconnected!", Toast.LENGTH_SHORT).show();
                 Log.i(TAG, "New State: STATE_DISCONNECTED");
 
                 //Fragment wechseln: Connection
                 if(! (m_activeFragment instanceof ConnectionFragment))
                 {
                     Log.i(TAG, "Disconnected, setting Connection Fragment");
-                    m_activeFragment = new ConnectionFragment();
+                    Fragment nextFragment = new ConnectionFragment();
+                    m_activeFragment = nextFragment;
                     getSupportFragmentManager().beginTransaction().replace(
-                            R.id.fragment_container, m_activeFragment).commit();
+                            R.id.fragment_container, nextFragment).commit();
+
+                    m_handler.postDelayed(() -> startScan(), 1000);
                 }
             }
             else
@@ -343,6 +344,66 @@ public class MainActivity extends AppCompatActivity
             {
                 Log.i(TAG, "ViewFragment is not active!");
             }
+        }
+
+        @Override
+        public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+            Log.i(TAG, "onCharacteristicChanged");
+            super.onCharacteristicChanged(gatt, characteristic);
+        }
+
+        @Override
+        public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+            Log.i(TAG, "onCharacteristicRead");
+            super.onCharacteristicRead(gatt, characteristic, status);
+        }
+
+        @Override
+        public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+            Log.i(TAG, "onCharacteristicWrite");
+            super.onCharacteristicWrite(gatt, characteristic, status);
+        }
+
+        @Override
+        public void onDescriptorRead(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
+            Log.i(TAG, "onDescriptorRead");
+            super.onDescriptorRead(gatt, descriptor, status);
+        }
+
+        @Override
+        public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
+            Log.i(TAG, "onDescriptorWrite");
+            super.onDescriptorWrite(gatt, descriptor, status);
+        }
+
+        @Override
+        public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
+            Log.i(TAG, "onMtuChanged");
+            super.onMtuChanged(gatt, mtu, status);
+        }
+
+        @Override
+        public void onPhyRead(BluetoothGatt gatt, int txPhy, int rxPhy, int status) {
+            Log.i(TAG, "onPhyRead");
+            super.onPhyRead(gatt, txPhy, rxPhy, status);
+        }
+
+        @Override
+        public void onPhyUpdate(BluetoothGatt gatt, int txPhy, int rxPhy, int status) {
+            Log.i(TAG, "onPhyUpdate");
+            super.onPhyUpdate(gatt, txPhy, rxPhy, status);
+        }
+
+        @Override
+        public void onReadRemoteRssi(BluetoothGatt gatt, int rssi, int status) {
+            Log.i(TAG, "onReadRemoteRssi");
+            super.onReadRemoteRssi(gatt, rssi, status);
+        }
+
+        @Override
+        public void onReliableWriteCompleted(BluetoothGatt gatt, int status) {
+            Log.i(TAG, "onReliableWriteCompleted");
+            super.onReliableWriteCompleted(gatt, status);
         }
     };
 
