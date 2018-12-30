@@ -16,19 +16,25 @@ import java.util.ArrayList;
 
 
 public class ListAdapter_BTLE_Services extends ArrayAdapter<BluetoothGattCharacteristic> {
-    Activity activity;
-    int layoutResourceID;
-    BluetoothGatt services;
-    ArrayList<BluetoothGattCharacteristic> m_characteristics;
+    public Activity activity;
+    public int layoutResourceID;
+    public BluetoothGatt services;
+    public ArrayList<BluetoothGattCharacteristic>  m_characteristics;
+    public ArrayList<MapItem>                      m_itemsToMap;
 
-    public ListAdapter_BTLE_Services(Activity activity, int resource, BluetoothGatt gattObj) {
+    public ListAdapter_BTLE_Services(Activity activity,
+                                     int resource,
+                                     BluetoothGatt gattObj,
+                                     ArrayList<MapItem> mapData) {
         super(activity.getApplicationContext(), resource, getCharacteristics(gattObj));
 
         this.activity = activity;
         layoutResourceID = resource;
         services = gattObj;
         m_characteristics = getCharacteristics(gattObj);
+        m_itemsToMap = mapData;
     }
+
 
     public static ArrayList<BluetoothGattCharacteristic> getCharacteristics(BluetoothGatt gattObj)
     {
@@ -61,9 +67,13 @@ public class ListAdapter_BTLE_Services extends ArrayAdapter<BluetoothGattCharact
         TextView tv = null;
 
         tv = convertView.findViewById(R.id.service_tv_name);
-        if (!cuuid.isEmpty())
-        {
-            tv.setText(cuuid);
+        if (!cuuid.isEmpty()) {
+            String text = cuuid;
+            for(MapItem item : m_itemsToMap)
+            {
+                if(item.uuid.equals(cuuid)) text = item.text;
+            }
+            tv.setText(text);
         }
         else {
             tv.setText("Characteristic " + position);
@@ -71,7 +81,12 @@ public class ListAdapter_BTLE_Services extends ArrayAdapter<BluetoothGattCharact
 
         tv = convertView.findViewById(R.id.service_tv_info);
         if (!suuid.isEmpty()) {
-            tv.setText(suuid);
+            String text = suuid;
+            for(MapItem item : m_itemsToMap)
+            {
+                if(item.uuid.equals(suuid)) text = item.text;
+            }
+            tv.setText(text);
         }
         else {
             tv.setText("No UUID found");
