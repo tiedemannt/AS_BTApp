@@ -77,12 +77,9 @@ public class ConnectionFragment extends Fragment {
     {
         Log.d(TAG, "addDevice: " + device.m_device.getName() + ": " + device.m_device.getAddress());
 
-        if(!m_BTDevicesArrayList.removeIf(n -> (n.m_device.getAddress().equals(device.m_device.getAddress()))))
-        {
-            Toast.makeText(getActivity(), "Device found: " + device.m_device.getAddress(), Toast.LENGTH_SHORT).show();
-        }
-
+        m_BTDevicesArrayList.removeIf(n -> (n.m_device.getAddress().equals(device.m_device.getAddress())));
         m_BTDevicesArrayList.add(device);
+
         m_adapter = new ListAdapter_BTLE_Devices(getActivity(), R.layout.btle_device_list_item, m_BTDevicesArrayList);
         m_listView.setAdapter(m_adapter);
     }

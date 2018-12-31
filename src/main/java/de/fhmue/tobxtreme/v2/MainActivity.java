@@ -63,6 +63,9 @@ public class MainActivity extends AppCompatActivity
     private int m_connectionState = STATE_DISCONNECTED;   //Connection State GATT
     private ArrayList<BluetoothGattCharacteristic> m_subscribedCharacteristics; //Subscribed Characteristics
 
+    //Specific für Home Fragment
+    private ArrayList<BluetoothGattCharacteristic> m_environmentServiceCharacteristics; //Characteristics des Environment Service
+
 
     /**
      *   OnCreate Function
@@ -111,39 +114,6 @@ public class MainActivity extends AppCompatActivity
 
         super.onDestroy();
     }
-
-    //    /**
-//     * Handler für BottomnavigationView
-//     */
-//    private BottomNavigationView.OnNavigationItemSelectedListener navListener =
-//            new BottomNavigationView.OnNavigationItemSelectedListener()
-//            {
-//                @Override
-//                public boolean onNavigationItemSelected(@NonNull MenuItem menuItem) {
-//                    Fragment selectedFragment = null;
-//
-//                    switch (menuItem.getItemId()) {
-//                        case R.id.nav_home:
-//                            selectedFragment = new HomeFragment();
-//                            Log.d(TAG, "onNavigationItemSelected(): HomeFragment selected.");
-//                            break;
-//                        case R.id.nav_connection:
-//                            selectedFragment = new ConnectionFragment();
-//                            Log.d(TAG, "onNavigationItemSelected(): ConnectionFragment selected.");
-//                            break;
-//                        case R.id.nav_view:
-//                            selectedFragment = new ViewFragment();
-//                            Log.d(TAG, "onNavigationItemSelected(): ViewFragment selected.");
-//                            break;
-//                    }
-//
-//                    m_activeFragment = selectedFragment;
-//                    getSupportFragmentManager().beginTransaction().replace(
-//                            R.id.fragment_container, selectedFragment).commit();
-//
-//                    return true; //Item soll selected werden
-//                }
-//            };
 
 
     /**
@@ -243,7 +213,7 @@ public class MainActivity extends AppCompatActivity
         }
     }
     /**
-     * -Methods implemented from Interface ViewFragmentInterface-
+     * -Method implemented from Interface ViewFragmentInterface-
      * Subscribe/Unsubscribe To Characteristic
      */
     public void subscribeToCharacteristic(BluetoothGattCharacteristic characteristic)
@@ -257,8 +227,9 @@ public class MainActivity extends AppCompatActivity
         {
             descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
             m_bluetoothGATTObject.writeDescriptor(descriptor);
-
             m_subscribedCharacteristics.add(characteristic);
+
+            Log.i(TAG, "Subscribed to Characteristic: " + characteristic.getUuid().toString());
         }
         else
         {
@@ -267,6 +238,10 @@ public class MainActivity extends AppCompatActivity
                     Toast.LENGTH_SHORT).show();
         }
     }
+    /**
+     * -Methods implemented from Interface ViewFragmentInterface-
+     * Subscribe/Unsubscribe To Characteristic
+     */
     public void unsubscribeAllCharacteristics()
     {
         for(BluetoothGattCharacteristic characteristic : m_subscribedCharacteristics)
@@ -276,6 +251,10 @@ public class MainActivity extends AppCompatActivity
         }
         m_subscribedCharacteristics.clear();
     }
+    /**
+     * -Methods implemented from Interface ViewFragmentInterface-
+     * disconnects from device
+     */
     public void disconnectFromDevice()
     {
         if (m_connectionState == STATE_CONNECTED)
@@ -295,9 +274,37 @@ public class MainActivity extends AppCompatActivity
                 getSupportFragmentManager().beginTransaction().replace(
                         R.id.fragment_container, nextFragment).commit();
 
+                m_handler = new Handler();
                 m_handler.postDelayed(() -> startScan(), 1000);
             }
         }
+    }
+    /**
+     * -Methods implemented from Interface ViewFragmentInterface-
+     * switches to home fragment
+     */
+    public void switchToHomeFragment(List<BluetoothGattCharacteristic> charlist)
+    {
+        if(!(m_activeFragment instanceof HomeFragment))
+        {
+            Log.i(TAG, "LGS Sensor detected, switching to Home Fragment");
+            Fragment nextFragment = new HomeFragment();
+            m_activeFragment = nextFragment;
+            getSupportFragmentManager().beginTransaction().replace(
+                    R.id.fragment_container, nextFragment).commit();
+        }
+
+        //Subscribe to all characteristics from environment service:
+        unsubscribeAllCharacteristics(); //Wegen die Sicherheit von allen anderen Char's unsubscriben
+
+        runOnUiThread(() -> {
+            int delay = 150;
+            for (BluetoothGattCharacteristic item : charlist) {
+                m_handler = new Handler();
+                m_handler.postDelayed(() -> subscribeToCharacteristic(item), delay);
+                delay += 150;
+            }
+        });
     }
 
     /**
@@ -316,36 +323,37 @@ public class MainActivity extends AppCompatActivity
             else
             {
                 //New Device found?
-                if(!((ConnectionFragment)m_activeFragment).getDeviceList().contains(new BT_Device(result.getDevice(), result.getRssi())))
+                if(!((ConnectionFragment)m_activeFragment).getDeviceList().contains(
+                        new BT_Device(result.getDevice(), result.getRssi())))
                 {
-                    Log.d(TAG, "onScanResult: found Device " + result.toString());
+                    Log.i(TAG, "onScanResult: found Device " + result.toString());
 
                     if((m_activeFragment instanceof ConnectionFragment)){
                         BT_Device newDevice = new BT_Device(result.getDevice(), result.getRssi());
                         ((ConnectionFragment)m_activeFragment).addDevice(newDevice);
                     }
                     else {
-                        Log.d(TAG, "onReceive(): ConnectionFragment not active.");
+                        Log.i(TAG, "onReceive(): ConnectionFragment not active.");
                         m_btadapter.getBluetoothLeScanner().stopScan(mLeScanCallback);
                     }
                 }
                 else
                 {
                     //Device bereits in Liste
-                    Log.d(TAG, "onScanResult: Device bereits in Liste.");
+                    Log.i(TAG, "onScanResult: Device bereits in Liste.");
                 }
             }
         }
 
         @Override
         public void onScanFailed(int errorCode) {
-            Log.d(TAG, "onScanFailed: " + errorCode);
+            Log.i(TAG, "onScanFailed: " + errorCode);
             Toast.makeText(getApplicationContext(), "BTLE Scan Failed: " + errorCode, Toast.LENGTH_SHORT).show();
         }
 
         @Override
         public void onBatchScanResults(List<ScanResult> results) {
-            Log.d(TAG, "onBatchScanResults: ...");
+            Log.i(TAG, "onBatchScanResults: ...");
             Toast.makeText(getApplicationContext(), "onBatchScanResults: ..." , Toast.LENGTH_SHORT).show();
         }
     };
@@ -441,11 +449,19 @@ public class MainActivity extends AppCompatActivity
          */
         @Override
         public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
-            Log.i(TAG, "onCharacteristicChanged: " + characteristic.toString());
+            //Log.i(TAG, "onCharacteristicChanged: " + characteristic.toString());
 
             if(m_activeFragment instanceof ViewFragment)
             {
                 ((ViewFragment)m_activeFragment).displayCharacteristicValue(characteristic);
+            }
+            else if(m_activeFragment instanceof HomeFragment)
+            {
+                ((HomeFragment)m_activeFragment).displayCharacteristicValue(characteristic);
+            }
+            else
+            {
+                Log.e(TAG, "onCharacteristicChanged() - Es ist ein Fragment aktiv, das nicht aktiv sein sollte!");
             }
         }
 

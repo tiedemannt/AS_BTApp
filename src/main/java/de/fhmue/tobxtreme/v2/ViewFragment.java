@@ -2,6 +2,7 @@ package de.fhmue.tobxtreme.v2;
 
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattService;
 import android.content.Context;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
@@ -15,8 +16,11 @@ import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.ListView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
 
 
 public class ViewFragment extends Fragment {
@@ -28,6 +32,7 @@ public class ViewFragment extends Fragment {
         void subscribeToCharacteristic(BluetoothGattCharacteristic characteristic);
         void unsubscribeAllCharacteristics();
         void disconnectFromDevice();
+        void switchToHomeFragment(List<BluetoothGattCharacteristic> charlist);
     }
     ViewFragmentInterface m_Callback;
 
@@ -49,20 +54,20 @@ public class ViewFragment extends Fragment {
      * CONSTANTS
      */
     private final String TAG = "ViewFragment";
-    private final String UUID_SERVICE_ENVIRONMENT        = "7d36eed5-ca05-42f3-867e-4d800a459ca1";
-    private final String UUID_CHARACTERISTIC_BRIGHT      = "c50956f6-cb78-487e-9566-b883ff3e5d53";
-    private final String UUID_CHARACTERISTIC_TEMPERATURE = "b33102eb-43a0-4da1-8183-ed169c0f1720";
-    private final String UUID_CHARACTERISTIC_VOC         = "6bb014e9-a0c1-47b7-939d-f97b8e4f7877";
-    private final String UUID_CHARACTERISTIC_CO2         = "4e1fcadd-cdbf-46bc-8faa-4b06320cfa2c";
-    private final String UUID_CHARACTERISTIC_HUMIDITY    = "4e311cb9-a68b-44b7-aa97-a591190aa08e";
-    private final String UUID_CHARACTERISTIC_PRESSURE    = "666b7e99-e973-4860-9006-c78cb95da5aa";
-    private final String TEXT_SERVICE_ENVIRONMENT        = "LGS Messdaten";
-    private final String TEXT_CHARACTERISTIC_BRIGHT      = "Umgebung hell (ja/nein)";
-    private final String TEXT_CHARACTERISTIC_TEMPERATURE = "Temperatur (°C)";
-    private final String TEXT_CHARACTERISTIC_VOC         = "VOC (ppb)";
-    private final String TEXT_CHARACTERISTIC_CO2         = "CO2 (ppm)";
-    private final String TEXT_CHARACTERISTIC_HUMIDITY    = "Luftfeuchte (%)";
-    private final String TEXT_CHARACTERISTIC_PRESSURE    = "Luftdruck (mBar)";
+    public final static String UUID_SERVICE_ENVIRONMENT        = "7d36eed5-ca05-42f3-867e-4d800a459ca1";
+    public final static String UUID_CHARACTERISTIC_BRIGHT      = "c50956f6-cb78-487e-9566-b883ff3e5d53";
+    public final static String UUID_CHARACTERISTIC_TEMPERATURE = "b33102eb-43a0-4da1-8183-ed169c0f1720";
+    public final static String UUID_CHARACTERISTIC_VOC         = "6bb014e9-a0c1-47b7-939d-f97b8e4f7877";
+    public final static String UUID_CHARACTERISTIC_CO2         = "4e1fcadd-cdbf-46bc-8faa-4b06320cfa2c";
+    public final static String UUID_CHARACTERISTIC_HUMIDITY    = "4e311cb9-a68b-44b7-aa97-a591190aa08e";
+    public final static String UUID_CHARACTERISTIC_PRESSURE    = "666b7e99-e973-4860-9006-c78cb95da5aa";
+    public final static String TEXT_SERVICE_ENVIRONMENT        = "LGS Messdaten";
+    public final static String TEXT_CHARACTERISTIC_BRIGHT      = "Umgebung hell (ja/nein)";
+    public final static String TEXT_CHARACTERISTIC_TEMPERATURE = "Temperatur (°C)";
+    public final static String TEXT_CHARACTERISTIC_VOC         = "VOC (ppb)";
+    public final static String TEXT_CHARACTERISTIC_CO2         = "CO2 (ppm)";
+    public final static String TEXT_CHARACTERISTIC_HUMIDITY    = "Luftfeuchte (%)";
+    public final static String TEXT_CHARACTERISTIC_PRESSURE    = "Luftdruck (mBar)";
 
 
     @Nullable
@@ -99,7 +104,7 @@ public class ViewFragment extends Fragment {
             m_Callback = (ViewFragment.ViewFragmentInterface) context;
         } else {
             throw new ClassCastException(context.toString()
-                    + " must implement ConnectionFragment.ConnectionFragmentInterface");
+                    + " must implement ViewFragment.ViewFragmentInterface");
         }
     }
 
@@ -110,22 +115,42 @@ public class ViewFragment extends Fragment {
     }
 
 
-    public void addService(BluetoothGatt newService){
-        Log.i("ViewFragment", "addService(): Setting BluetoothGatt Element");
-        m_btGatt = newService;
+    public void addService(BluetoothGatt newBtGatt)
+    {
+        boolean lgsdetected = false;
 
+        Log.i(TAG, "addService(): Setting BluetoothGatt Element");
+        m_btGatt = newBtGatt;
 
-        getActivity().runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                Log.i("ViewFragment", "addService(): Setting List Adapter on UI Thread.");
+        //Services durchsuchen nach Environment Service
+        for(BluetoothGattService service : newBtGatt.getServices())
+            if(service.getUuid().toString().equals(UUID_SERVICE_ENVIRONMENT))lgsdetected = true;
 
-                m_adapter = new ListAdapter_BTLE_Services(getActivity(),
-                        R.layout.btle_service_list_item, m_btGatt, m_UUIDMAP);
-                m_listView.setAdapter(m_adapter);
-            }
-        });
+        if(lgsdetected)
+        {
+            Log.i(TAG, "Device bietet den Environment Service an -> LGS Sensor");
 
+            m_Callback.switchToHomeFragment(
+                    newBtGatt.getService(UUID.fromString(UUID_SERVICE_ENVIRONMENT)).getCharacteristics());
+        }
+        else
+        {
+            Log.i(TAG, "Device bietet nicht den Environment Service an -> kein LGS Sensor");
+
+            getActivity().runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    Log.i("ViewFragment", "addService(): Setting List Adapter on UI Thread.");
+
+                    m_adapter = new ListAdapter_BTLE_Services(getActivity(),
+                            R.layout.btle_service_list_item, m_btGatt, m_UUIDMAP);
+                    m_listView.setAdapter(m_adapter);
+
+                    Toast.makeText(getActivity(),
+                            "Kein LGS Sensor!", Toast.LENGTH_LONG).show();
+                }
+            });
+        }
     }
 
     public void displayCharacteristicValue(BluetoothGattCharacteristic characteristic)
