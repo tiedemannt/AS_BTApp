@@ -27,6 +27,13 @@ import org.w3c.dom.Text;
 import java.util.Calendar;
 
 public class HomeFragment extends Fragment {
+
+    public interface HomeFragmentInterface
+    {
+        void switchToSettingsFragment();
+    }
+    HomeFragmentInterface m_CallBack;
+
     /**
      * Interface von ViewFragment nutzen
      */
@@ -170,11 +177,15 @@ public class HomeFragment extends Fragment {
     @Override
     public void onAttach(Context context) {
         super.onAttach(context);
-        if (context instanceof ConnectionFragment.ConnectionFragmentInterface) {
+        if ((context instanceof ConnectionFragment.ConnectionFragmentInterface)
+                && (context instanceof HomeFragment.HomeFragmentInterface))
+        {
             m_viewFragmentCallback = (ViewFragment.ViewFragmentInterface) context;
-        } else {
+            m_CallBack = (HomeFragmentInterface) context;
+        }
+        else {
             throw new ClassCastException(context.toString()
-                    + " must implement ViewFragment.ViewFragmentInterface");
+                    + " must implement ViewFragment.ViewFragmentInterface and HomeFragment.HomeFragmentInterface");
         }
     }
     @Override
@@ -260,9 +271,14 @@ public class HomeFragment extends Fragment {
                     m_Pressure.setText("" + newPoint.getY() + " mBar");
                     break;
                 }
+                case ViewFragment.UUID_CHARACTERISTIC_SETTING_OUTPUTACT:
+                {
+                    //Ignore
+                    break;
+                }
                 default:
                 {
-                    Log.i(TAG, "Ungültige Characteristic empfangen.");
+                    Log.i(TAG, "Ungültige Characteristic empfangen. + " + characteristic.getUuid().toString());
                     break;
                 }
             }
@@ -280,9 +296,7 @@ public class HomeFragment extends Fragment {
             }
             case R.id.homefragment_adjustbutton: {
                 Log.i(TAG, "AdapterView.OnClickListener - homefragment_adjustbutton clicked.");
-
-                //TODO
-
+                m_CallBack.switchToSettingsFragment();
                 break;
             }
             case R.id.homeview_buttonTemperatur:

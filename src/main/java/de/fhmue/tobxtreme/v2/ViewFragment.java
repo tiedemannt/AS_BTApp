@@ -32,7 +32,8 @@ public class ViewFragment extends Fragment {
         void subscribeToCharacteristic(BluetoothGattCharacteristic characteristic);
         void unsubscribeAllCharacteristics();
         void disconnectFromDevice();
-        void switchToHomeFragment(List<BluetoothGattCharacteristic> charlist);
+        void switchToHomeFragment(List<BluetoothGattCharacteristic> EnvCharlist,
+                                  List<BluetoothGattCharacteristic> SetCharlist);
     }
     ViewFragmentInterface m_Callback;
 
@@ -54,20 +55,37 @@ public class ViewFragment extends Fragment {
      * CONSTANTS
      */
     private final String TAG = "ViewFragment";
+    //Service UUID
     public final static String UUID_SERVICE_ENVIRONMENT        = "7d36eed5-ca05-42f3-867e-4d800a459ca1";
+    public final static String UUID_SERVICE_CONFIGURATION      = "7d36eed5-ca05-42f3-867e-4d800a459ca2";
+
+    //Data Characteristics UUIDS
     public final static String UUID_CHARACTERISTIC_BRIGHT      = "c50956f6-cb78-487e-9566-b883ff3e5d53";
     public final static String UUID_CHARACTERISTIC_TEMPERATURE = "b33102eb-43a0-4da1-8183-ed169c0f1720";
     public final static String UUID_CHARACTERISTIC_VOC         = "6bb014e9-a0c1-47b7-939d-f97b8e4f7877";
     public final static String UUID_CHARACTERISTIC_CO2         = "4e1fcadd-cdbf-46bc-8faa-4b06320cfa2c";
     public final static String UUID_CHARACTERISTIC_HUMIDITY    = "4e311cb9-a68b-44b7-aa97-a591190aa08e";
     public final static String UUID_CHARACTERISTIC_PRESSURE    = "666b7e99-e973-4860-9006-c78cb95da5aa";
+
+    //Settings Characteristics UUIDS
+    public final static String UUID_CHARACTERISTIC_SETTING_REPRATE   = "286cc204-4b3f-4f82-8ebb-667372b15669";
+    public final static String UUID_CHARACTERISTIC_SETTING_CRITTEMP  = "286cc204-4b3f-4f82-8ebb-667372b1566a";
+    public final static String UUID_CHARACTERISTIC_SETTING_CRITPRES  = "286cc204-4b3f-4f82-8ebb-667372b1566b";
+    public final static String UUID_CHARACTERISTIC_SETTING_CRITCO2   = "286cc204-4b3f-4f82-8ebb-667372b1566c";
+    public final static String UUID_CHARACTERISTIC_SETTING_CRITHUM   = "286cc204-4b3f-4f82-8ebb-667372b1566d";
+    public final static String UUID_CHARACTERISTIC_SETTING_CRITVOC   = "286cc204-4b3f-4f82-8ebb-667372b1566e";
+    public final static String UUID_CHARACTERISTIC_SETTING_OUTPUTACT = "286cc204-4b3f-4f82-8ebb-667372b1566f";
+
+    //Text (für Mapping)
     public final static String TEXT_SERVICE_ENVIRONMENT        = "LGS Messdaten";
+    public final static String TEXT_SERVICE_CONFIGURATION      = "LGS Konfiguration";
     public final static String TEXT_CHARACTERISTIC_BRIGHT      = "Umgebung hell (ja/nein)";
     public final static String TEXT_CHARACTERISTIC_TEMPERATURE = "Temperatur (°C)";
     public final static String TEXT_CHARACTERISTIC_VOC         = "VOC (ppb)";
     public final static String TEXT_CHARACTERISTIC_CO2         = "CO2 (ppm)";
     public final static String TEXT_CHARACTERISTIC_HUMIDITY    = "Luftfeuchte (%)";
     public final static String TEXT_CHARACTERISTIC_PRESSURE    = "Luftdruck (mBar)";
+    public final static String TEXT_CONFIGURATION_REPRATE      = "Repetition Rate (ms)";
 
 
     @Nullable
@@ -85,6 +103,7 @@ public class ViewFragment extends Fragment {
         //Service Mappings
         m_UUIDMAP = new ArrayList<>();
         m_UUIDMAP.add(new MapItem(UUID_SERVICE_ENVIRONMENT, TEXT_SERVICE_ENVIRONMENT));
+        m_UUIDMAP.add(new MapItem(UUID_SERVICE_CONFIGURATION, TEXT_SERVICE_CONFIGURATION));
 
         //Characteristic Mappings
         m_UUIDMAP.add(new MapItem(UUID_CHARACTERISTIC_BRIGHT     , TEXT_CHARACTERISTIC_BRIGHT));
@@ -93,6 +112,8 @@ public class ViewFragment extends Fragment {
         m_UUIDMAP.add(new MapItem(UUID_CHARACTERISTIC_CO2        , TEXT_CHARACTERISTIC_CO2));
         m_UUIDMAP.add(new MapItem(UUID_CHARACTERISTIC_HUMIDITY   , TEXT_CHARACTERISTIC_HUMIDITY));
         m_UUIDMAP.add(new MapItem(UUID_CHARACTERISTIC_PRESSURE   , TEXT_CHARACTERISTIC_PRESSURE));
+
+        m_UUIDMAP.add(new MapItem(UUID_CHARACTERISTIC_SETTING_REPRATE, TEXT_CONFIGURATION_REPRATE));
 
         return v;
     }
@@ -117,21 +138,26 @@ public class ViewFragment extends Fragment {
 
     public void addService(BluetoothGatt newBtGatt)
     {
-        boolean lgsdetected = false;
+        boolean envservice = false;
+        boolean setservice = false;
 
         Log.i(TAG, "addService(): Setting BluetoothGatt Element");
         m_btGatt = newBtGatt;
 
         //Services durchsuchen nach Environment Service
         for(BluetoothGattService service : newBtGatt.getServices())
-            if(service.getUuid().toString().equals(UUID_SERVICE_ENVIRONMENT))lgsdetected = true;
+        {
+            if(service.getUuid().toString().equals(UUID_SERVICE_ENVIRONMENT)) envservice = true;
+            if(service.getUuid().toString().equals(UUID_SERVICE_CONFIGURATION)) setservice = true;
+        }
 
-        if(lgsdetected)
+        if(envservice && setservice)
         {
             Log.i(TAG, "Device bietet den Environment Service an -> LGS Sensor");
 
             m_Callback.switchToHomeFragment(
-                    newBtGatt.getService(UUID.fromString(UUID_SERVICE_ENVIRONMENT)).getCharacteristics());
+                    newBtGatt.getService(UUID.fromString(UUID_SERVICE_ENVIRONMENT)).getCharacteristics(),
+                    newBtGatt.getService(UUID.fromString(UUID_SERVICE_CONFIGURATION)).getCharacteristics());
         }
         else
         {

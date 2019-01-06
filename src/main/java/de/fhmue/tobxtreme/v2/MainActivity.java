@@ -38,7 +38,9 @@ public class MainActivity extends AppCompatActivity
      */
     implements
         ConnectionFragment.ConnectionFragmentInterface,
-        ViewFragment.ViewFragmentInterface
+        ViewFragment.ViewFragmentInterface,
+        HomeFragment.HomeFragmentInterface,
+        SettingsFragment.SettingsFragmentInterface
 {
 
     /**
@@ -64,7 +66,8 @@ public class MainActivity extends AppCompatActivity
     private ArrayList<BluetoothGattCharacteristic> m_subscribedCharacteristics; //Subscribed Characteristics
 
     //Specific für Home Fragment
-    private ArrayList<BluetoothGattCharacteristic> m_environmentServiceCharacteristics; //Characteristics des Environment Service
+    private List<BluetoothGattCharacteristic> m_environmentServiceCharacteristics; //Characteristics des Environment Service
+    private List<BluetoothGattCharacteristic> m_settingsServiceCharacteristics;    //Characteristics des Settings Service
 
 
     /**
@@ -283,8 +286,12 @@ public class MainActivity extends AppCompatActivity
      * -Methods implemented from Interface ViewFragmentInterface-
      * switches to home fragment
      */
-    public void switchToHomeFragment(List<BluetoothGattCharacteristic> charlist)
+    public void switchToHomeFragment(List<BluetoothGattCharacteristic> EnvCharlist,
+                                     List<BluetoothGattCharacteristic> SetCharlist)
     {
+        m_environmentServiceCharacteristics = EnvCharlist;
+        m_settingsServiceCharacteristics = SetCharlist;
+
         if(!(m_activeFragment instanceof HomeFragment))
         {
             Log.i(TAG, "LGS Sensor detected, switching to Home Fragment");
@@ -298,13 +305,83 @@ public class MainActivity extends AppCompatActivity
         unsubscribeAllCharacteristics(); //Wegen die Sicherheit von allen anderen Char's unsubscriben
 
         runOnUiThread(() -> {
-            int delay = 150;
-            for (BluetoothGattCharacteristic item : charlist) {
+            int delay = 200;
+            for (BluetoothGattCharacteristic item : m_environmentServiceCharacteristics) {
                 m_handler = new Handler();
                 m_handler.postDelayed(() -> subscribeToCharacteristic(item), delay);
-                delay += 150;
+                delay += 200;
             }
         });
+    }
+
+    /**
+     * -Methods implemented from Interface HomeFragmentInterface-
+     * switches to Settings fragment
+     */
+    public void switchToSettingsFragment()
+    {
+        if(!(m_activeFragment instanceof SettingsFragment))
+        {
+            Log.i(TAG, "Switching to Settings Fragment");
+            Fragment nextFragment = new SettingsFragment();
+            m_activeFragment = nextFragment;
+            getSupportFragmentManager().beginTransaction().replace(
+                    R.id.fragment_container, nextFragment).commit();
+        }
+    }
+
+    /**
+     * -Methods implemented from Interface SettingsFragmentInterface-
+     */
+    //reswitches to Home fragment
+    public void reSwitchToHomeFragment()
+    {
+        if(!(m_activeFragment instanceof HomeFragment))
+        {
+            Log.i(TAG, "Switching to Home Fragment again");
+            Fragment nextFragment = new HomeFragment();
+            m_activeFragment = nextFragment;
+            getSupportFragmentManager().beginTransaction().replace(
+                    R.id.fragment_container, nextFragment).commit();
+        }
+    }
+    //request Daten für alle Settings Characteristics
+    public void requestSettingsData()
+    {
+        runOnUiThread(() -> {
+            int delay = 400;
+            for(BluetoothGattCharacteristic chara : m_settingsServiceCharacteristics) {
+                m_handler = new Handler();
+                m_handler.postDelayed(() -> {
+                    //Output Active/Inactive nicht requesten
+                    if (!(chara.getUuid().toString().equals(ViewFragment.UUID_CHARACTERISTIC_SETTING_OUTPUTACT))) {
+                        Log.i(TAG, "ReadRequest for UUID: " + chara.getUuid().toString() + "-----------------------");
+                        m_bluetoothGATTObject.readCharacteristic(chara);
+                    }
+                }, delay);
+                delay += 400;
+            }
+        });
+    }
+    //request Daten für einen bestimmten Settings Characteristic
+    public void requestSettingsDataForCharacteristic(BluetoothGattCharacteristic characteristic)
+    {
+        Log.i(TAG, "ReadRequest for UUID: " + characteristic.getUuid().toString() + "-----------------------");
+        m_bluetoothGATTObject.readCharacteristic(characteristic);
+    }
+    //Gebe das GATT Object zurück
+    public BluetoothGatt getGattObject()
+    {
+        return m_bluetoothGATTObject;
+    }
+    //Subscribe auf Notifications zum Outputactive Characteristic
+    public void registerOnOutputActiveCharacteristic()
+    {
+        for(BluetoothGattCharacteristic characteristic : m_settingsServiceCharacteristics) {
+            if (characteristic.getUuid().toString().equals(ViewFragment.UUID_CHARACTERISTIC_SETTING_OUTPUTACT)) {
+                subscribeToCharacteristic(characteristic);
+            }
+        }
     }
 
     /**
@@ -385,14 +462,19 @@ public class MainActivity extends AppCompatActivity
             else if(newState == BluetoothProfile.STATE_CONNECTING)
             {
                 m_connectionState = STATE_CONNECTING;
-                Toast.makeText(MainActivity.this, "Connecting...", Toast.LENGTH_SHORT).show();
+                runOnUiThread(() -> {
+                    Toast.makeText(getApplicationContext(), "Connecting...", Toast.LENGTH_SHORT).show();
+                });
                 Log.i(TAG, "New State: STATE_CONNECTING");
             }
             else if(newState == BluetoothProfile.STATE_DISCONNECTED)
             {
                 m_connectionState = STATE_DISCONNECTED;
                 Log.i(TAG, "New State: STATE_DISCONNECTED");
-                Toast.makeText(MainActivity.this, "Disconnected!", Toast.LENGTH_SHORT).show();
+
+                runOnUiThread(() -> {
+                    Toast.makeText(getApplicationContext(), "Disconnected!", Toast.LENGTH_SHORT).show();
+                });
 
                 //Fragment wechseln: Connection
                 if(! (m_activeFragment instanceof ConnectionFragment))
@@ -459,22 +541,34 @@ public class MainActivity extends AppCompatActivity
             {
                 ((HomeFragment)m_activeFragment).displayCharacteristicValue(characteristic);
             }
+            else if(m_activeFragment instanceof SettingsFragment)
+            {
+                ((SettingsFragment)m_activeFragment).handleCharacteristicUpdate(characteristic);
+            }
             else
             {
                 Log.e(TAG, "onCharacteristicChanged() - Es ist ein Fragment aktiv, das nicht aktiv sein sollte!");
             }
         }
 
+        // Callback; Wird aufgerufen wenn eine Antwort auf einen ReadRequest empfangen wurde
         @Override
         public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
-            Log.i(TAG, "onCharacteristicRead");
-            super.onCharacteristicRead(gatt, characteristic, status);
+            if(m_activeFragment instanceof SettingsFragment)
+            {
+                ((SettingsFragment)m_activeFragment).handleReadRequestAnswer(characteristic);
+            }
         }
 
+        // Callback; Wird aufgerufen wenn eine Antwort auf einen Writerequest empfangen wurde
         @Override
         public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             Log.i(TAG, "onCharacteristicWrite");
-            super.onCharacteristicWrite(gatt, characteristic, status);
+
+            if(m_activeFragment instanceof SettingsFragment)
+            {
+                ((SettingsFragment)m_activeFragment).handleWriteRequestAnswer(characteristic, status);
+            }
         }
 
         @Override
