@@ -20,15 +20,17 @@ import java.util.ArrayList;
 
 public class ConnectionFragment extends Fragment {
     /**
-     *  INTERFACE
+     * INTERFACE
      */
-    public interface ConnectionFragmentInterface
-    {
+    public interface ConnectionFragmentInterface {
         void startScan();
+
         void stopScan();
+
         void connectToDevice(BT_Device device);
     }
-    ConnectionFragmentInterface m_Callback;
+
+    public ConnectionFragmentInterface m_Callback;
 
 
     /**
@@ -40,41 +42,40 @@ public class ConnectionFragment extends Fragment {
     /**
      * OBJECTS
      */
-    private ListView                    m_listView;             //Listview Devices
-    private ListAdapter_BTLE_Devices    m_adapter;              //Listadapter
-    private ArrayList<BT_Device>        m_BTDevicesArrayList;   //Device Arraylist Data
-    private boolean                     m_scanActive;           //Flag, ob gerade Scan aktiv
-    private Button                      m_scanButton;           //Button Retry Scan
-    private ProgressBar                 m_progressBar;          //ProgressBar ActivityIndicator
+    private ListView m_listView;             //Listview Devices
+    private ListAdapter_BTLE_Devices m_adapter;              //Listadapter
+    private ArrayList<BT_Device> m_BTDevicesArrayList;   //Device Arraylist Data
+    private boolean m_scanActive;           //Flag, ob gerade Scan aktiv
+    private Button m_scanButton;           //Button Retry Scan
+    private ProgressBar m_progressBar;          //ProgressBar ActivityIndicator
 
 
     /**
-     *  GETTER/SETTER
+     * GETTER/SETTER
      */
-    public ArrayList<BT_Device> getDeviceList() {return m_BTDevicesArrayList;}
-    public void setScanActive(boolean isActive){
+    public ArrayList<BT_Device> getDeviceList() {
+        return m_BTDevicesArrayList;
+    }
+
+    public void setScanActive(boolean isActive) {
         m_scanActive = isActive;
         m_progressBar.setIndeterminate(isActive);
-        if(isActive)
-        {
+        if (isActive) {
             m_progressBar.setVisibility(View.VISIBLE);
-        }
-        else
-        {
+        } else {
             m_progressBar.setVisibility(View.INVISIBLE);
         }
 
         m_scanButton.setEnabled(!isActive);
     }
 
-    public void clearDeviceList()
-    {
+    public void clearDeviceList() {
         m_BTDevicesArrayList.clear();
         m_adapter = new ListAdapter_BTLE_Devices(getActivity(), R.layout.btle_device_list_item, m_BTDevicesArrayList);
         m_listView.setAdapter(m_adapter);
     }
-    public void addDevice(final BT_Device device)
-    {
+
+    public void addDevice(final BT_Device device) {
         Log.d(TAG, "addDevice: " + device.m_device.getName() + ": " + device.m_device.getAddress());
 
         m_BTDevicesArrayList.removeIf(n -> (n.m_device.getAddress().equals(device.m_device.getAddress())));
@@ -83,11 +84,10 @@ public class ConnectionFragment extends Fragment {
         m_adapter = new ListAdapter_BTLE_Devices(getActivity(), R.layout.btle_device_list_item, m_BTDevicesArrayList);
         m_listView.setAdapter(m_adapter);
     }
-    public void removeDevice(final BT_Device device)
-    {
+
+    public void removeDevice(final BT_Device device) {
         Log.d(TAG, "removeDevice: " + device.m_device.getName() + ": " + device.m_device.getAddress());
-        if(m_BTDevicesArrayList.removeIf(n -> (n.m_device.getAddress().equals(device.m_device.getAddress()))))
-        {
+        if (m_BTDevicesArrayList.removeIf(n -> (n.m_device.getAddress().equals(device.m_device.getAddress())))) {
             m_adapter = new ListAdapter_BTLE_Devices(getActivity(), R.layout.btle_device_list_item, m_BTDevicesArrayList);
             m_listView.setAdapter(m_adapter);
         }
@@ -105,9 +105,11 @@ public class ConnectionFragment extends Fragment {
     }
 
     @Override
-    public void onDetach()
-    {
-        m_Callback.stopScan();
+    public void onDetach() {
+        if(m_Callback != null)
+        {
+            m_Callback.stopScan();
+        }
         super.onDetach();
     }
 
@@ -142,27 +144,29 @@ public class ConnectionFragment extends Fragment {
     }
 
     /**
-     *   UI Adapters
+     * UI Adapters
      */
     private AdapterView.OnItemClickListener m_itemClickListener = (adapterView, view, i, l) -> {
-        if(m_scanActive) m_Callback.stopScan(); //Aktuellen Scan stoppen
+        if (m_scanActive) m_Callback.stopScan(); //Aktuellen Scan stoppen
 
         /**
          *   Item, auf das geklickt wurde, verarbeiten: (Position in Liste: i)
          *   -> Mit Device verbinden
          */
         BT_Device device = m_BTDevicesArrayList.get(i);
-        if(device.m_device.getAddress().isEmpty()) {
+        if (device.m_device.getAddress().isEmpty()) {
             Log.i(TAG, "Adress of Device is empty!");
             Toast.makeText(getActivity(), "Failed to Connect, Deviceadress is empty!", Toast.LENGTH_SHORT).show();
-        }
-        else {
+        } else {
             m_Callback.connectToDevice(device);
         }
     };
+    public AdapterView.OnItemClickListener getOnItemClickListener() {return m_itemClickListener;};
+
     private AdapterView.OnClickListener m_buttonClickListener = (View v) -> {
-        if ( v.getId() == R.id.connection_fragment_scanButton) {
-            m_Callback.startScan();
+        if (v.getId() == R.id.connection_fragment_scanButton) {
+            if(m_Callback != null) m_Callback.startScan();
         }
     };
+    public AdapterView.OnClickListener getOnClickListener() {return m_buttonClickListener;};
 }

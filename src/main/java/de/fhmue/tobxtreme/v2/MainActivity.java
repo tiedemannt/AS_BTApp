@@ -78,10 +78,6 @@ public class MainActivity extends AppCompatActivity
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        //Bottomnavigationview einrichten:
-        //BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
-        //bottomNav.setOnNavigationItemSelectedListener(navListener);
-
         //Connection Fragment bei Start öffnen:
         m_activeFragment = new ConnectionFragment();
         getSupportFragmentManager().beginTransaction().replace(
@@ -209,7 +205,7 @@ public class MainActivity extends AppCompatActivity
     {
         Log.d(TAG, "stopScan(): called.");
 
-        m_btadapter.getBluetoothLeScanner().stopScan(mLeScanCallback);
+        if(m_btadapter != null) m_btadapter.getBluetoothLeScanner().stopScan(mLeScanCallback);
 
         if(m_activeFragment instanceof ConnectionFragment) {
             ((ConnectionFragment) m_activeFragment).setScanActive(false);
