@@ -33,7 +33,8 @@ public class ViewFragment extends Fragment {
         void unsubscribeAllCharacteristics();
         void disconnectFromDevice();
         void switchToHomeFragment(List<BluetoothGattCharacteristic> EnvCharlist,
-                                  List<BluetoothGattCharacteristic> SetCharlist);
+                                  List<BluetoothGattCharacteristic> SetCharlist,
+                                  List<BluetoothGattCharacteristic> fsmCharlist);
     }
     ViewFragmentInterface m_Callback;
 
@@ -140,6 +141,7 @@ public class ViewFragment extends Fragment {
     {
         boolean envservice = false;
         boolean setservice = false;
+        boolean fsmservice = false;
 
         Log.i(TAG, "addService(): Setting BluetoothGatt Element");
         m_btGatt = newBtGatt;
@@ -149,19 +151,21 @@ public class ViewFragment extends Fragment {
         {
             if(service.getUuid().toString().equals(UUID_SERVICE_ENVIRONMENT)) envservice = true;
             if(service.getUuid().toString().equals(UUID_SERVICE_CONFIGURATION)) setservice = true;
+            if(service.getUuid().toString().equals(BT_FSM_DataRead.UUID_SERVICE_FSM)) fsmservice = true;
         }
 
-        if(envservice && setservice)
+        if(envservice && setservice && fsmservice)
         {
             Log.i(TAG, "Device bietet den Environment Service an -> LGS Sensor");
 
             m_Callback.switchToHomeFragment(
                     newBtGatt.getService(UUID.fromString(UUID_SERVICE_ENVIRONMENT)).getCharacteristics(),
-                    newBtGatt.getService(UUID.fromString(UUID_SERVICE_CONFIGURATION)).getCharacteristics());
+                    newBtGatt.getService(UUID.fromString(UUID_SERVICE_CONFIGURATION)).getCharacteristics(),
+                    newBtGatt.getService(UUID.fromString(BT_FSM_DataRead.UUID_SERVICE_FSM)).getCharacteristics());
         }
         else
         {
-            Log.i(TAG, "Device bietet nicht den Environment Service an -> kein LGS Sensor");
+            Log.i(TAG, "Service fehlt -> kein LGS Sensor");
 
             getActivity().runOnUiThread(new Runnable() {
                 @Override
@@ -186,52 +190,8 @@ public class ViewFragment extends Fragment {
 
         //Display Value on UI Thread
         getActivity().runOnUiThread(() -> {
-            switch (m_characteristic.getUuid().toString())
-            {
-                case UUID_CHARACTERISTIC_BRIGHT:
-                {
-                    m_textView.setText("" +
-                            m_characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0));
-                    break;
-                }
-                case UUID_CHARACTERISTIC_TEMPERATURE:
-                {
-                    m_textView.setText("" +
-                            m_characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_SINT8, 0));
-                    break;
-                }
-                case UUID_CHARACTERISTIC_VOC:
-                {
-                    m_textView.setText("" +
-                            m_characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0));
-                    break;
-                }
-                case UUID_CHARACTERISTIC_CO2:
-                {
-                    m_textView.setText("" +
-                            m_characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0));
-                    break;
-                }
-                case UUID_CHARACTERISTIC_HUMIDITY:
-                {
-                    m_textView.setText("" +
-                            m_characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0));
-                    break;
-                }
-                case UUID_CHARACTERISTIC_PRESSURE:
-                {
-                    m_textView.setText("" +
-                            m_characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0));
-                    break;
-                }
-                default:
-                {
-                    //Unknown Characteristic; Show as 16bit Signed Integer
-                    m_textView.setText("UNC Val: " +
-                            m_characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_SINT16, 0));
-                    break;
-                }
-            }
+            m_textView.setText("UNC Val: " +
+                    m_characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_SINT16, 0));
         });
     }
 

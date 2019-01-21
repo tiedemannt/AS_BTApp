@@ -22,7 +22,6 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.bluetooth.le.ScanCallback;
-import android.view.View;
 import android.widget.Toast;
 import android.os.Handler;
 
@@ -40,7 +39,8 @@ public class MainActivity extends AppCompatActivity
         ConnectionFragment.ConnectionFragmentInterface,
         ViewFragment.ViewFragmentInterface,
         HomeFragment.HomeFragmentInterface,
-        SettingsFragment.SettingsFragmentInterface
+        SettingsFragment.SettingsFragmentInterface,
+        BT_FSM_DataRead.BT_FSM_DataRead_Interface
 {
 
     /**
@@ -51,7 +51,6 @@ public class MainActivity extends AppCompatActivity
     private static final int STATE_DISCONNECTED = 0;
     private static final int STATE_CONNECTING = 1;
     private static final int STATE_CONNECTED = 2;
-
     private static final UUID DESCRIPTOR_CONFIG_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
 
 
@@ -68,6 +67,9 @@ public class MainActivity extends AppCompatActivity
     //Specific für Home Fragment
     private List<BluetoothGattCharacteristic> m_environmentServiceCharacteristics; //Characteristics des Environment Service
     private List<BluetoothGattCharacteristic> m_settingsServiceCharacteristics;    //Characteristics des Settings Service
+
+    //FSM: Data Read from LGS:
+    BT_FSM_DataRead m_fsm;
 
 
     /**
@@ -99,6 +101,8 @@ public class MainActivity extends AppCompatActivity
 
         m_subscribedCharacteristics = new ArrayList();
 
+        //Init FSM
+        m_fsm = new BT_FSM_DataRead(this);
 
         Log.d(TAG, "MainActivity::onCreate(): finished.");
     }
@@ -283,7 +287,8 @@ public class MainActivity extends AppCompatActivity
      * switches to home fragment
      */
     public void switchToHomeFragment(List<BluetoothGattCharacteristic> EnvCharlist,
-                                     List<BluetoothGattCharacteristic> SetCharlist)
+                                     List<BluetoothGattCharacteristic> SetCharlist,
+                                     List<BluetoothGattCharacteristic> fsmCharlist)
     {
         m_environmentServiceCharacteristics = EnvCharlist;
         m_settingsServiceCharacteristics = SetCharlist;
@@ -308,6 +313,8 @@ public class MainActivity extends AppCompatActivity
                 delay += 200;
             }
         });
+
+        m_fsm.setLGSConnected(fsmCharlist);
     }
 
     /**
@@ -324,6 +331,10 @@ public class MainActivity extends AppCompatActivity
             getSupportFragmentManager().beginTransaction().replace(
                     R.id.fragment_container, nextFragment).commit();
         }
+    }
+    public BT_FSM_DataRead getBTFsm()
+    {
+        return m_fsm;
     }
 
     /**
@@ -377,6 +388,17 @@ public class MainActivity extends AppCompatActivity
             if (characteristic.getUuid().toString().equals(ViewFragment.UUID_CHARACTERISTIC_SETTING_OUTPUTACT)) {
                 subscribeToCharacteristic(characteristic);
             }
+        }
+    }
+    /**
+     * -Methods implemented from Interface BT_FSM_DataRead_Interface-
+     */
+    public void readProcessFinished(BT_FSM_DataRead.ReadProcessData readData)
+    {
+        Log.d(TAG, "readProcessFinished() called!");
+        if(m_activeFragment instanceof HomeFragment)
+        {
+            ((HomeFragment)m_activeFragment).fsmReadProcessFinished(readData);
         }
     }
 
@@ -458,14 +480,19 @@ public class MainActivity extends AppCompatActivity
             else if(newState == BluetoothProfile.STATE_CONNECTING)
             {
                 m_connectionState = STATE_CONNECTING;
+                m_fsm.setLGSDisconnected();
+
                 runOnUiThread(() -> {
                     Toast.makeText(getApplicationContext(), "Connecting...", Toast.LENGTH_SHORT).show();
                 });
                 Log.i(TAG, "New State: STATE_CONNECTING");
+
+
             }
             else if(newState == BluetoothProfile.STATE_DISCONNECTED)
             {
                 m_connectionState = STATE_DISCONNECTED;
+                m_fsm.setLGSDisconnected();
                 Log.i(TAG, "New State: STATE_DISCONNECTED");
 
                 runOnUiThread(() -> {
@@ -504,7 +531,8 @@ public class MainActivity extends AppCompatActivity
                     }
                     Log.i(TAG, "----------------- ALL CHARACTERISTICS SHOWN ABOVE ------------------");
 
-                    ((ViewFragment)m_activeFragment).addService(gatt);
+                    if(m_activeFragment instanceof ViewFragment)
+                        ((ViewFragment)m_activeFragment).addService(gatt);
 
                     //m_bluetoothGATTObject.setCharacteristicNotification(characteristic, true);
                     //Log.i(TAG, "Subscribed to Characteristic: " + characteristic.toString());
@@ -529,6 +557,7 @@ public class MainActivity extends AppCompatActivity
         public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
             //Log.i(TAG, "onCharacteristicChanged: " + characteristic.toString());
 
+            m_fsm.handleNotify(characteristic);
             if(m_activeFragment instanceof ViewFragment)
             {
                 ((ViewFragment)m_activeFragment).displayCharacteristicValue(characteristic);
@@ -550,6 +579,8 @@ public class MainActivity extends AppCompatActivity
         // Callback; Wird aufgerufen wenn eine Antwort auf einen ReadRequest empfangen wurde
         @Override
         public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+
+            m_fsm.handleReadResponse(characteristic, status);
             if(m_activeFragment instanceof SettingsFragment)
             {
                 ((SettingsFragment)m_activeFragment).handleReadRequestAnswer(characteristic);
@@ -559,8 +590,8 @@ public class MainActivity extends AppCompatActivity
         // Callback; Wird aufgerufen wenn eine Antwort auf einen Writerequest empfangen wurde
         @Override
         public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
-            Log.i(TAG, "onCharacteristicWrite");
 
+            m_fsm.handleWriteResponse(characteristic, status);
             if(m_activeFragment instanceof SettingsFragment)
             {
                 ((SettingsFragment)m_activeFragment).handleWriteRequestAnswer(characteristic, status);

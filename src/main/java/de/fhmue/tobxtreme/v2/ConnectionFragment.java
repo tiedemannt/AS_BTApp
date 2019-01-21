@@ -37,17 +37,18 @@ public class ConnectionFragment extends Fragment {
      * CONSTANTS
      */
     private static final String TAG = "ConnectionFragment";
+    public static final String LGS_DEVICENAME = "LGS.tb1.0";
 
 
     /**
      * OBJECTS
      */
-    private ListView m_listView;             //Listview Devices
-    private ListAdapter_BTLE_Devices m_adapter;              //Listadapter
-    private ArrayList<BT_Device> m_BTDevicesArrayList;   //Device Arraylist Data
-    private boolean m_scanActive;           //Flag, ob gerade Scan aktiv
-    private Button m_scanButton;           //Button Retry Scan
-    private ProgressBar m_progressBar;          //ProgressBar ActivityIndicator
+    private ListView                    m_listView;             //Listview Devices
+    private ListAdapter_BTLE_Devices    m_adapter;              //Listadapter
+    private ArrayList<BT_Device>        m_BTDevicesArrayList;   //Device Arraylist Data
+    private boolean                     m_scanActive;           //Flag, ob gerade Scan aktiv
+    private Button                      m_scanButton;           //Button Retry Scan
+    private ProgressBar                 m_progressBar;          //ProgressBar ActivityIndicator
 
 
     /**
@@ -76,17 +77,24 @@ public class ConnectionFragment extends Fragment {
     }
 
     public void addDevice(final BT_Device device) {
-        Log.d(TAG, "addDevice: " + device.m_device.getName() + ": " + device.m_device.getAddress());
+        //Log.d(TAG, "addDevice: " + device.m_device.getName() + ": " + device.m_device.getAddress());
 
         m_BTDevicesArrayList.removeIf(n -> (n.m_device.getAddress().equals(device.m_device.getAddress())));
         m_BTDevicesArrayList.add(device);
 
         m_adapter = new ListAdapter_BTLE_Devices(getActivity(), R.layout.btle_device_list_item, m_BTDevicesArrayList);
         m_listView.setAdapter(m_adapter);
+
+        //Falls LGS Sensor: Direkt verbinden
+//        String deviceName = device.m_device.getName();
+////        if(deviceName.equals(LGS_DEVICENAME))
+////        {
+////            m_Callback.connectToDevice(device);
+////        }
     }
 
     public void removeDevice(final BT_Device device) {
-        Log.d(TAG, "removeDevice: " + device.m_device.getName() + ": " + device.m_device.getAddress());
+        //Log.d(TAG, "removeDevice: " + device.m_device.getName() + ": " + device.m_device.getAddress());
         if (m_BTDevicesArrayList.removeIf(n -> (n.m_device.getAddress().equals(device.m_device.getAddress())))) {
             m_adapter = new ListAdapter_BTLE_Devices(getActivity(), R.layout.btle_device_list_item, m_BTDevicesArrayList);
             m_listView.setAdapter(m_adapter);

@@ -184,4 +184,23 @@
         android:layout_marginBottom="-5dp"
         android:id="@+id/homeview_buttonCO2"/>
 
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Aktuell"
+        android:textStyle="bold"
+        android:layout_alignLeft="@+id/homeview_temperatur"
+        android:layout_alignBottom="@+id/homeview_temperatur"
+        android:layout_marginBottom="30dp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Lese"
+        android:textStyle="bold"
+        android:layout_alignLeft="@+id/homeview_temperatur"
+        android:layout_alignBottom="@+id/homeview_temperatur"
+        android:layout_marginBottom="30dp"
+        android:layout_marginLeft="-150dp"/>
+
 </RelativeLayout>
