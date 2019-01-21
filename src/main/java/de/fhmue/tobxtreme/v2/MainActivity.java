@@ -401,6 +401,13 @@ public class MainActivity extends AppCompatActivity
             ((HomeFragment)m_activeFragment).fsmReadProcessFinished(readData);
         }
     }
+    public void makeToast(String text)
+    {
+        runOnUiThread(() -> {
+            Toast.makeText(MainActivity.this, text, Toast.LENGTH_SHORT).show();
+        });
+
+    }
 
     /**
      * LE SCAN Callback Object
@@ -572,7 +579,7 @@ public class MainActivity extends AppCompatActivity
             }
             else
             {
-                Log.e(TAG, "onCharacteristicChanged() - Es ist ein Fragment aktiv, das nicht aktiv sein sollte!");
+                //Log.e(TAG, "onCharacteristicChanged() - Es ist ein Fragment aktiv, das nicht aktiv sein sollte!");
             }
         }
 

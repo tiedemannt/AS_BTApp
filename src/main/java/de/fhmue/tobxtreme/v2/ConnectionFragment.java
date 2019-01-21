@@ -86,11 +86,11 @@ public class ConnectionFragment extends Fragment {
         m_listView.setAdapter(m_adapter);
 
         //Falls LGS Sensor: Direkt verbinden
-//        String deviceName = device.m_device.getName();
-////        if(deviceName.equals(LGS_DEVICENAME))
-////        {
-////            m_Callback.connectToDevice(device);
-////        }
+        String deviceName = device.m_device.getName();
+        if((deviceName != null) && (deviceName.equals(LGS_DEVICENAME)))
+        {
+            m_Callback.connectToDevice(device);
+        }
     }
 
     public void removeDevice(final BT_Device device) {

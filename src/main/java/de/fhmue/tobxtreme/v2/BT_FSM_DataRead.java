@@ -2,13 +2,16 @@ package de.fhmue.tobxtreme.v2;
 
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
-import android.bluetooth.BluetoothGattService;
 import android.content.Context;
 import android.util.Log;
+import android.widget.Toast;
 
 import com.jjoe64.graphview.series.DataPoint;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.UUID;
 
 public class BT_FSM_DataRead {
@@ -61,16 +64,18 @@ public class BT_FSM_DataRead {
         void subscribeToCharacteristic(BluetoothGattCharacteristic characteristic);
         void readProcessFinished(ReadProcessData readData);
         BluetoothGatt getGattObject();
+        void makeToast(String text);
     }
 
     BT_FSM_DataRead_Interface m_interface;
 
     public class ReadProcessData {
         public FSM_SENSORPROPERTY c_dataType;
-        public List<DataPoint> c_dataPoints;
+        public ArrayList<DataPoint> c_dataPoints;
 
         public ReadProcessData(FSM_SENSORPROPERTY propertyType) {
-            c_dataType = propertyType;;
+            c_dataType = propertyType;
+            c_dataPoints = new ArrayList<>();
         }
 
         public void addDataPoint(DataPoint newPoint) {
@@ -87,11 +92,6 @@ public class BT_FSM_DataRead {
     private FSM_STATE m_fsmState;   //Aktueller State
     private FSM_STATE m_newState;   //Der nächste State
 
-    //Characteristic des FSM Service: Notifyready Characteristic
-    private BluetoothGattCharacteristic m_fsmNotifyCharacteristic = null;
-    private BluetoothGattCharacteristic m_fsmRequestCharacteristic = null;
-    private BluetoothGattCharacteristic m_fsmPaketCharacteristic = null;
-
     //Das zu lesende Property:
     private FSM_SENSORPROPERTY m_readProperty = FSM_SENSORPROPERTY.SENSORPROPERTY_NONE;
 
@@ -103,6 +103,7 @@ public class BT_FSM_DataRead {
 
     //Die noch zu lesenden Pakete:
     private int m_remainingPaketsToRead = 0;
+    private int m_dataCountPerPaket = 0;
     private ReadProcessData m_readProcessData;
 
     //Control Flags:
@@ -111,6 +112,11 @@ public class BT_FSM_DataRead {
     private boolean m_isWriteResponseReceived = false;  //Flag: Writeresponse empfangen?
     private boolean m_isDataPaketReceived = false;      //Flag: Datenpaket empfangen?
     private boolean m_startReadProcess = false;         //Flag: Leseprozess starten
+    private boolean m_isTimeout = false;                //Flag: Timeout
+
+    //Timeout-Timer
+    private static final long TIMER_TIMOUT_DELAY = 2000;
+    Timer m_timeoutTimer;
     //---------------------------------------------------------------------------
 
 
@@ -150,17 +156,14 @@ public class BT_FSM_DataRead {
                 if (item.getUuid().toString().equals(UUID_CHARACTERISTIC_REQUEST))
                 {
                     characteristicCount++;
-                    m_fsmRequestCharacteristic = item;
                 }
                 if (item.getUuid().toString().equals(UUID_CHARACTERISTIC_NOTIFYREADY))
                 {
                     characteristicCount++;
-                    m_fsmNotifyCharacteristic = item;
                 }
                 if (item.getUuid().toString().equals(UUID_CHARACTERISTIC_READPACKAGE))
                 {
                     characteristicCount++;
-                    m_fsmPaketCharacteristic = item;
                 }
             }
 
@@ -183,9 +186,6 @@ public class BT_FSM_DataRead {
     public void setLGSDisconnected() {
         Log.d(TAG, "setLGSDisconnected()!");
 
-        m_fsmNotifyCharacteristic = null;
-        m_fsmPaketCharacteristic = null;
-        m_fsmRequestCharacteristic = null;
         m_readProperty = FSM_SENSORPROPERTY.SENSORPROPERTY_NONE;
         m_isConnected = false;
         triggerFSM();
@@ -250,8 +250,10 @@ public class BT_FSM_DataRead {
     {
         if (characteristic.getUuid().toString().equals(UUID_CHARACTERISTIC_REQUEST))
         {
-            if((status == BluetoothGatt.GATT_SUCCESS)) {
-                Log.d(TAG, "handleWriteResponse: GATT_SUCCESS");
+            if((status == BluetoothGatt.GATT_SUCCESS))
+            {
+                Log.d(TAG, "handleWriteResponse: GATT_SUCCESS; Value written: "
+                    + characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0));
                 m_receivedPaket = characteristic;
                 m_isWriteResponseReceived = true;
                 triggerFSM();
@@ -324,6 +326,68 @@ public class BT_FSM_DataRead {
         m_readProperty = FSM_SENSORPROPERTY.SENSORPROPERTY_NONE;
         m_remainingPaketsToRead = 0;
     }
+    /**
+     * Hilfscallback: Auf Notify Subscriben
+     */
+    private void subscribeToNotifyCharacteristic()
+    {
+        BluetoothGattCharacteristic chara =
+                m_interface
+                        .getGattObject()
+                        .getService(UUID.fromString(UUID_SERVICE_FSM))
+                        .getCharacteristic(UUID.fromString(UUID_CHARACTERISTIC_NOTIFYREADY));
+        m_interface.subscribeToCharacteristic(chara);
+    }
+    /**
+     * Hilfscallback: Gibt den Request-Characteristic zurück
+     */
+    private BluetoothGattCharacteristic getRequestCharacteristic()
+    {
+        BluetoothGattCharacteristic chara =
+                m_interface
+                        .getGattObject()
+                        .getService(UUID.fromString(UUID_SERVICE_FSM))
+                        .getCharacteristic(UUID.fromString(UUID_CHARACTERISTIC_REQUEST));
+        return chara;
+    }
+    /**
+     * Hilfscallback: Gibt den Paket-Characteristic zurück
+     */
+    private BluetoothGattCharacteristic getPaketCharacteristic()
+    {
+        BluetoothGattCharacteristic chara =
+                m_interface
+                        .getGattObject()
+                        .getService(UUID.fromString(UUID_SERVICE_FSM))
+                        .getCharacteristic(UUID.fromString(UUID_CHARACTERISTIC_READPACKAGE));
+        return chara;
+    }
+    private void sendProcessRequestCharacteristic(int requestType)
+    {
+        /**
+         * Tabelle:
+         * - 0: Prozess abgeschlossen
+         * - 1: Temperatur lesen
+         * - 2: Feuchte lesen
+         * - 3: Druck lesen
+         * - 4: Co2 lesen
+         * - 5: Voc lesen
+         */
+        BluetoothGattCharacteristic m_fsmRequestCharacteristic = getRequestCharacteristic();
+        m_fsmRequestCharacteristic.setValue(requestType, BluetoothGattCharacteristic.FORMAT_UINT8, 0);
+        m_interface.getGattObject().writeCharacteristic(m_fsmRequestCharacteristic);
+    }
+    private void startTimeoutSupervision(long delay)
+    {
+        m_timeoutTimer = new Timer();
+        m_timeoutTimer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                m_isTimeout = true;
+                triggerFSM();
+            }
+        }, delay);
+    }
 
 
     /**
@@ -350,14 +414,14 @@ public class BT_FSM_DataRead {
 
     private FSM_STATE processState(FSM_STATE state) {
         FSM_STATE newState = state;
+        boolean keepFlags = false;
 
         //Initialer State oder Device nicht verbunden
         if (state == FSM_STATE.STATE_NOT_CONNECTED) {
             Log.d(TAG, "STATE_NOT_CONNECTED");
             if (m_isConnected) //Warten bis verbunden...
             {
-                m_interface.subscribeToCharacteristic(m_fsmNotifyCharacteristic);
-
+                subscribeToNotifyCharacteristic();
                 newState = FSM_STATE.STATE_CONNECTED;
             }
         }
@@ -378,48 +442,48 @@ public class BT_FSM_DataRead {
         {
             Log.d(TAG, "STATE_REQUEST_READ_DATA");
 
-            switch (m_readProperty) {
-                case SENSORPROPERTY_TEMPERATURE:
-                {
-                    m_fsmRequestCharacteristic.setValue(1, BluetoothGattCharacteristic.FORMAT_UINT8, 0);
-                    m_interface.getGattObject().writeCharacteristic(m_fsmRequestCharacteristic);
-                    newState = FSM_STATE.STATE_WAITING_FOR_READDATA_READY;
-                    break;
-                }
-                case SENSORPROPERTY_HUMIDITY:
-                {
-                    m_fsmRequestCharacteristic.setValue(2, BluetoothGattCharacteristic.FORMAT_UINT8, 0);
-                    m_interface.getGattObject().writeCharacteristic(m_fsmRequestCharacteristic);
-                    newState = FSM_STATE.STATE_WAITING_FOR_READDATA_READY;
-                    break;
-                }
-                case SENSORPROPERTY_PRESSURE:
-                {
-                    m_fsmRequestCharacteristic.setValue(3, BluetoothGattCharacteristic.FORMAT_UINT8, 0);
-                    m_interface.getGattObject().writeCharacteristic(m_fsmRequestCharacteristic);
-                    newState = FSM_STATE.STATE_WAITING_FOR_READDATA_READY;
-                    break;
-                }
-                case SENSORPROPERTY_CO2:
-                {
-                    m_fsmRequestCharacteristic.setValue(4, BluetoothGattCharacteristic.FORMAT_UINT8, 0);
-                    m_interface.getGattObject().writeCharacteristic(m_fsmRequestCharacteristic);
-                    newState = FSM_STATE.STATE_WAITING_FOR_READDATA_READY;
-                    break;
-                }
-                case SENSORPROPERTY_VOC:
-                {
-                    m_fsmRequestCharacteristic.setValue(5, BluetoothGattCharacteristic.FORMAT_UINT8, 0);
-                    m_interface.getGattObject().writeCharacteristic(m_fsmRequestCharacteristic);
-                    newState = FSM_STATE.STATE_WAITING_FOR_READDATA_READY;
-                    break;
-                }
-                case SENSORPROPERTY_NONE:
-                default: {
-                    newState = FSM_STATE.STATE_UNKNOWN;
-                    break;
-                }
+            if(m_readProperty == FSM_SENSORPROPERTY.SENSORPROPERTY_NONE)
+            {
+                newState = FSM_STATE.STATE_UNKNOWN;
             }
+            else
+            {
+                switch (m_readProperty) {
+                    case SENSORPROPERTY_TEMPERATURE:
+                    {
+                        sendProcessRequestCharacteristic(1);
+                        newState = FSM_STATE.STATE_WAITING_FOR_READDATA_READY;
+                        break;
+                    }
+                    case SENSORPROPERTY_HUMIDITY:
+                    {
+                        sendProcessRequestCharacteristic(2);
+                        newState = FSM_STATE.STATE_WAITING_FOR_READDATA_READY;
+                        break;
+                    }
+                    case SENSORPROPERTY_PRESSURE:
+                    {
+                        sendProcessRequestCharacteristic(3);
+                        newState = FSM_STATE.STATE_WAITING_FOR_READDATA_READY;
+                        break;
+                    }
+                    case SENSORPROPERTY_CO2:
+                    {
+                        sendProcessRequestCharacteristic(4);
+                        newState = FSM_STATE.STATE_WAITING_FOR_READDATA_READY;
+                        break;
+                    }
+                    case SENSORPROPERTY_VOC:
+                    {
+                        sendProcessRequestCharacteristic(5);
+                        newState = FSM_STATE.STATE_WAITING_FOR_READDATA_READY;
+                        break;
+                    }
+                }
+
+                startTimeoutSupervision(TIMER_TIMOUT_DELAY);
+            }
+
         }
         else if (state == FSM_STATE.STATE_WAITING_FOR_READDATA_READY)
         {
@@ -432,13 +496,32 @@ public class BT_FSM_DataRead {
                 //Notify Readdata Ready empfangen?
                 if (m_isNotifyReceived)
                 {
+                    m_timeoutTimer.cancel();
                     m_remainingPaketsToRead =
                             m_receivedPaket.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0);
+                    m_dataCountPerPaket =
+                            m_receivedPaket.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 2);
 
-                    Log.d(TAG, "processState: Remaining Pakets to read: " + m_remainingPaketsToRead);
+                    Log.d(TAG, "processState: Remaining Pakets to read: " + m_remainingPaketsToRead
+                        + ", Data Count per Paket: " + m_dataCountPerPaket);
 
                     m_readProcessData = new ReadProcessData(m_readProperty);
                     newState = FSM_STATE.STATE_REQUEST_DATAPACKAGE;
+                }
+
+                //Hat der User einen anderen Prozess gestartet und es wurde noch kein
+                //Notifyready empfangen? (-> ggf. Fehler im Modul)
+                if(m_startReadProcess)
+                {
+                    keepFlags = true;
+                    newState = FSM_STATE.STATE_CONNECTED;
+                }
+
+                //Timeout?
+                if(m_isTimeout)
+                {
+                    newState = FSM_STATE.CANCEL_PROCESS;
+                    m_interface.makeToast("Timeout!");
                 }
             }
         }
@@ -450,9 +533,10 @@ public class BT_FSM_DataRead {
             }
             else
             {
-                m_interface.getGattObject().readCharacteristic(m_fsmPaketCharacteristic);
+                m_interface.getGattObject().readCharacteristic(getPaketCharacteristic());
 
                 m_remainingPaketsToRead--;
+                startTimeoutSupervision(TIMER_TIMOUT_DELAY);
                 newState = FSM_STATE.STATE_WAITING_FOR_DATAPACKAGE;
             }
         }
@@ -467,12 +551,14 @@ public class BT_FSM_DataRead {
             {
                 if (m_isDataPaketReceived)
                 {
+                    m_timeoutTimer.cancel();
+
                     switch (m_readProperty) {
                         case SENSORPROPERTY_CO2:
                         case SENSORPROPERTY_VOC:
                         case SENSORPROPERTY_PRESSURE:
                         {
-                            for(int i = 0; i < 10; i++)
+                            for(int i = 0; i < m_dataCountPerPaket; i++)
                             {
                                 int newValue = m_receivedPaket.getIntValue(
                                         BluetoothGattCharacteristic.FORMAT_UINT16, 2*i);
@@ -485,7 +571,7 @@ public class BT_FSM_DataRead {
                         }
                         case SENSORPROPERTY_HUMIDITY:
                         {
-                            for(int i = 0; i < 20; i++)
+                            for(int i = 0; i < m_dataCountPerPaket; i++)
                             {
                                 int newValue = m_receivedPaket.getIntValue(
                                         BluetoothGattCharacteristic.FORMAT_UINT8, i);
@@ -498,7 +584,7 @@ public class BT_FSM_DataRead {
                         }
                         case SENSORPROPERTY_TEMPERATURE:
                         {
-                            for(int i = 0; i < 20; i++)
+                            for(int i = 0; i < m_dataCountPerPaket; i++)
                             {
                                 int newValue = m_receivedPaket.getIntValue(
                                         BluetoothGattCharacteristic.FORMAT_SINT8, i);
@@ -516,11 +602,21 @@ public class BT_FSM_DataRead {
                     else
                         newState = FSM_STATE.STATE_REQUEST_DATAPACKAGE;
                 }
+
+                //Timeout?
+                if(m_isTimeout)
+                {
+                    newState = FSM_STATE.CANCEL_PROCESS;
+                    m_interface.makeToast("Timeout!");
+                }
             }
         }
         else if (state == FSM_STATE.STATE_READDATA_COMPLETED)
         {
             Log.d(TAG, "STATE_READDATA_COMPLETED");
+
+            sendProcessRequestCharacteristic(0); //Indicate Finished
+            m_interface.makeToast("Complete!");
             m_interface.readProcessFinished(m_readProcessData);
 
             resetProcessData();
@@ -547,11 +643,13 @@ public class BT_FSM_DataRead {
         }
 
         //Reset Control-Flags:
-        m_startReadProcess = false;
-        m_isDataPaketReceived = false;
-        m_isWriteResponseReceived = false;
-        m_isReadResponseReceived = false;
-        m_isNotifyReceived = false;
+        if(!keepFlags) {
+            m_startReadProcess = false;
+            m_isDataPaketReceived = false;
+            m_isWriteResponseReceived = false;
+            m_isReadResponseReceived = false;
+            m_isNotifyReceived = false;
+        }
 
         return newState;
     }

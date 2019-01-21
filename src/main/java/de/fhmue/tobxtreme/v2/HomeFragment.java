@@ -112,8 +112,7 @@ public class HomeFragment extends Fragment {
         m_graphView.getViewport().setScrollable(true);
         m_graphView.getViewport().setScrollableY(true);
 
-        m_graphView.setTitle("LGS Daten");
-        m_graphView.getLegendRenderer().setVisible(true);
+        m_graphView.getLegendRenderer().setVisible(false);
         m_graphView.getLegendRenderer().setAlign(LegendRenderer.LegendAlign.TOP);
         m_graphView.getLegendRenderer().setBackgroundColor(Color.LTGRAY);
 
@@ -305,10 +304,11 @@ public class HomeFragment extends Fragment {
         if(acceptData)
         {
             m_lineGraphSeries.setColor          (Color.BLUE);
-            m_lineGraphSeries.setDrawDataPoints(false);
-            m_lineGraphSeries.setDataPointsRadius(7);
-            m_lineGraphSeries.setThickness(5);
-            m_lineGraphSeries.setDrawBackground(true);
+            m_lineGraphSeries.setDrawDataPoints(true);
+            m_lineGraphSeries.setDataPointsRadius(5);
+            m_lineGraphSeries.setThickness(4);
+            m_lineGraphSeries.setDrawBackground(false);
+            m_lineGraphSeries.setDrawAsPath(false);
             m_lineGraphSeries.setBackgroundColor(android.R.color.holo_blue_bright);
 
             //Daten überführen:
@@ -319,6 +319,32 @@ public class HomeFragment extends Fragment {
             m_graphView.removeAllSeries();
             m_graphView.addSeries(m_lineGraphSeries);
 
+            switch (readData.c_dataType)
+            {
+                case SENSORPROPERTY_TEMPERATURE:
+                {
+                    m_graphView.setTitle("Temperaturen [°C]");
+                    break;
+                }
+                case SENSORPROPERTY_HUMIDITY:
+                {
+                    m_graphView.setTitle("Feuchtigkeiten [%]");
+                    break;
+                }
+                case SENSORPROPERTY_PRESSURE:
+                {
+                    m_graphView.setTitle("Luftdrücke [mBar]");
+                    break;
+                }
+                case SENSORPROPERTY_CO2:
+                {
+                    m_graphView.setTitle("CO2 Konzentrationen [ppm]");
+                }
+                case SENSORPROPERTY_VOC:
+                {
+                    m_graphView.setTitle("VOC Konzentrationen [ppb]");
+                }
+            }
             //GGF: Hier noch aufsplitten nach Properties
             //m_graphView.getViewport().setMinY(0.0);
             //m_graphView.getViewport().setMaxY(30.0);
