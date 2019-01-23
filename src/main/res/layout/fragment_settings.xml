@@ -8,23 +8,34 @@
         android:layout_width="40dp"
         android:layout_height="40dp"
         android:layout_alignParentLeft="true"
-        android:layout_marginLeft="10dp"
+        android:layout_marginLeft="20dp"
         android:layout_alignParentBottom="true"
-        android:layout_marginBottom="10dp"
+        android:layout_marginBottom="20dp"
         android:id="@+id/settingsfragment_backButton"
-        android:background="@drawable/ic_backspace_black_24dp"
+        android:background="@drawable/ic_home_black_24dp"
         android:backgroundTint="@android:color/darker_gray"
         />
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="RepRate [s]:"
+        android:text="Speicherintervall [min]:"
         android:layout_marginTop="30dp"
-        android:layout_marginLeft="70dp"
+        android:layout_marginLeft="10dp"
         android:layout_alignParentLeft="true"
         android:layout_alignParentTop="true"
         android:id="@+id/settingsframent_reprateText"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Es werden 240 Werte gespeichert. 6min = Werte für einen Tag."
+        android:textSize="10dp"
+        android:textStyle="italic"
+        android:layout_centerHorizontal="true"
+        android:layout_alignBottom="@+id/settingsframent_reprateText"
+        android:layout_marginBottom="-30dp"
+        android:textColor="@color/design_default_color_primary_dark"/>
 
     <EditText
         android:layout_width="110dp"
@@ -33,7 +44,7 @@
         android:textAlignment="center"
         android:id="@+id/settingsfragment_reprate_edit"
         android:layout_alignLeft="@+id/settingsframent_reprateText"
-        android:layout_marginLeft="90dp"
+        android:layout_marginLeft="155dp"
         android:layout_alignTop="@+id/settingsframent_reprateText"
         android:layout_marginTop="-13dp"
         android:enabled="false"
@@ -259,15 +270,17 @@
 
 
 
-    <Button
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+    <ImageButton
+        android:layout_width="40dp"
+        android:layout_height="40dp"
         android:text="Send"
         android:layout_alignParentBottom="true"
         android:layout_alignParentRight="true"
-        android:layout_marginBottom="10dp"
-        android:layout_marginRight="10dp"
+        android:layout_marginBottom="20dp"
+        android:layout_marginRight="20dp"
         android:id="@+id/settingsfragment_syncButton"
+        android:background="@drawable/ic_sync_black_24dp"
+        android:backgroundTint="@android:color/darker_gray"
         />
 
 

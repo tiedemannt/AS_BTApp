@@ -1,10 +1,7 @@
 package de.fhmue.tobxtreme.v2;
 
-import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
-import android.bluetooth.BluetoothGattService;
 import android.content.Context;
-import android.graphics.Color;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -21,20 +18,15 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.util.UUID;
-
 
 public class SettingsFragment extends Fragment {
 
-    public interface SettingsFragmentInterface
+    public interface Interface
     {
         void reSwitchToHomeFragment();
-        void requestSettingsData();
-        void requestSettingsDataForCharacteristic(BluetoothGattCharacteristic characteristic);
-        BluetoothGatt getGattObject();
-        void registerOnOutputActiveCharacteristic();
+        LGS_BluetoothFSM getFSM();
     }
-    SettingsFragmentInterface m_CallBack;
+    Interface m_interface;
 
     /**
      * Constants
@@ -45,7 +37,7 @@ public class SettingsFragment extends Fragment {
      * Objects
      */
     private ImageButton     m_returnButton;     //Button Back To HomeFragment
-    private Button          m_syncButton;       //Button Sync
+    private ImageButton     m_syncButton;       //Button Sync
     private EditText        m_editRepRate;      //Edit Field Rep Rate
     //Aktuelle Werte
     private TextView        m_aktTemperatur;    //Aktuelle Temperatur (rot)
@@ -105,8 +97,7 @@ public class SettingsFragment extends Fragment {
 
         //Daten anfragen
         m_isOutputActive = false;
-        m_CallBack.registerOnOutputActiveCharacteristic();
-        m_CallBack.requestSettingsData();
+        m_interface.getFSM().switchedToSettingsFragment();
 
         return v;
     }
@@ -114,8 +105,8 @@ public class SettingsFragment extends Fragment {
     @Override
     public void onAttach(Context context) {
         super.onAttach(context);
-        if (context instanceof SettingsFragment.SettingsFragmentInterface) {
-            m_CallBack = (SettingsFragmentInterface) context;
+        if (context instanceof SettingsFragment.Interface) {
+            m_interface = (Interface) context;
         } else {
             throw new ClassCastException(context.toString()
                     + " must implement SettingsFragment.SettingsFragmentInterface");
@@ -135,77 +126,51 @@ public class SettingsFragment extends Fragment {
     {
         //Display Value on UI Thread
         getActivity().runOnUiThread(() -> {
-            switch (characteristic.getUuid().toString())
+            if(characteristic.getUuid().equals(LGS_Constants.UUID_CHARACTERISTIC_SETTING_REPRATE))
             {
-                case ViewFragment.UUID_CHARACTERISTIC_SETTING_REPRATE: {
-                    Log.i(TAG, "Update received: UUID_CHARACTERISTIC_SETTING_REPRATE");
-
-                    m_aktreprate = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0);
-                    m_editRepRate.setText("" + m_aktreprate);
-                    m_editRepRate.setEnabled(true);
-
-                    break;
-                }
-                case ViewFragment.UUID_CHARACTERISTIC_SETTING_CRITTEMP:
-                {
-                    Log.i(TAG, "Update received: UUID_CHARACTERISTIC_SETTING_CRITTEMP");
-
-                    m_aktcriticTemp = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_SINT8, 0);
-                    m_editCriticTemperature.setText("" + m_aktcriticTemp);
-                    m_editCriticTemperature.setEnabled(true);
-
-                    break;
-                }
-                case ViewFragment.UUID_CHARACTERISTIC_SETTING_CRITPRES:
-                {
-                    Log.i(TAG, "Update received: UUID_CHARACTERISTIC_SETTING_CRITPRES");
-
-                    m_aktcriticPressure = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0);
-                    m_editCriticPressure.setText("" + m_aktcriticPressure);
-                    m_editCriticPressure.setEnabled(true);
-
-                    break;
-                }
-                case ViewFragment.UUID_CHARACTERISTIC_SETTING_CRITCO2:
-                {
-                    Log.i(TAG, "Update received: UUID_CHARACTERISTIC_SETTING_CRITCO2");
-
-                    m_aktcriticCo2 = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0);
-                    m_editCriticCo2.setText("" + m_aktcriticCo2);
-                    m_editCriticCo2.setEnabled(true);
-
-                    break;
-                }
-                case ViewFragment.UUID_CHARACTERISTIC_SETTING_CRITHUM:
-                {
-                    Log.i(TAG, "Update received: UUID_CHARACTERISTIC_SETTING_CRITHUM");
-
-                    m_aktcriticHumidity = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
-                    m_editCriticHumidity.setText("" + m_aktcriticHumidity);
-                    m_editCriticHumidity.setEnabled(true);
-
-                    break;
-                }
-                case ViewFragment.UUID_CHARACTERISTIC_SETTING_CRITVOC:
-                {
-                    Log.i(TAG, "Update received: UUID_CHARACTERISTIC_SETTING_CRITVOC");
-
-                    m_aktcriticVoc = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0);
-                    m_editCriticVoc.setText("" + m_aktcriticVoc);
-                    m_editCriticVoc.setEnabled(true);
-
-                    break;
-                }
-                case ViewFragment.UUID_CHARACTERISTIC_SETTING_OUTPUTACT:
-                {
-                    Log.i(TAG, "Update received: UUID_CHARACTERISTIC_SETTING_OUTPUTACT");
-                    break;
-                }
-                default:
-                {
+                Log.i(TAG, "Update received: UUID_CHARACTERISTIC_SETTING_REPRATE");
+                m_aktreprate = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0);
+                m_editRepRate.setText("" + m_aktreprate);
+                m_editRepRate.setEnabled(true);
+            }
+            else if(characteristic.getUuid().equals(LGS_Constants.UUID_CHARACTERISTIC_SETTING_CRITTEMP))
+            {
+                Log.i(TAG, "Update received: UUID_CHARACTERISTIC_SETTING_CRITTEMP");
+                m_aktcriticTemp = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_SINT8, 0);
+                m_editCriticTemperature.setText("" + m_aktcriticTemp);
+                m_editCriticTemperature.setEnabled(true);
+            }
+            else if(characteristic.getUuid().equals(LGS_Constants.UUID_CHARACTERISTIC_SETTING_CRITPRES))
+            {
+                Log.i(TAG, "Update received: UUID_CHARACTERISTIC_SETTING_CRITPRES");
+                m_aktcriticPressure = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0);
+                m_editCriticPressure.setText("" + m_aktcriticPressure);
+                m_editCriticPressure.setEnabled(true);
+            }
+            else if(characteristic.getUuid().equals(LGS_Constants.UUID_CHARACTERISTIC_SETTING_CRITCO2))
+            {
+                Log.i(TAG, "Update received: UUID_CHARACTERISTIC_SETTING_CRITCO2");
+                m_aktcriticCo2 = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0);
+                m_editCriticCo2.setText("" + m_aktcriticCo2);
+                m_editCriticCo2.setEnabled(true);
+            }
+            else if(characteristic.getUuid().equals(LGS_Constants.UUID_CHARACTERISTIC_SETTING_CRITHUM))
+            {
+                Log.i(TAG, "Update received: UUID_CHARACTERISTIC_SETTING_CRITHUM");
+                m_aktcriticHumidity = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
+                m_editCriticHumidity.setText("" + m_aktcriticHumidity);
+                m_editCriticHumidity.setEnabled(true);
+            }
+            else if(characteristic.getUuid().equals(LGS_Constants.UUID_CHARACTERISTIC_SETTING_CRITVOC))
+            {
+                Log.i(TAG, "Update received: UUID_CHARACTERISTIC_SETTING_CRITVOC");
+                m_aktcriticVoc = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0);
+                m_editCriticVoc.setText("" + m_aktcriticVoc);
+                m_editCriticVoc.setEnabled(true);
+            }
+            else
+            {
                     Log.i(TAG, "handleReadRequestAnswer() - Characteristic ignoriert.");
-                    break;
-                }
             }
         });
     }
@@ -222,7 +187,7 @@ public class SettingsFragment extends Fragment {
                case 0x0: //OK, alternativ Konstante BluetoothGatt.GATT_SUCCESS
                {
                    Log.i(TAG, "handleWriteRequestAnswer() - Value accepted!");
-                   m_CallBack.requestSettingsDataForCharacteristic(characteristic); //Settings Daten neu requesten
+                   m_interface.getFSM().requestReadCharacteristic(characteristic); //Settings Daten neu requesten
                    break;
                }
                case 0x10: //Unknown Attribute
@@ -267,86 +232,69 @@ public class SettingsFragment extends Fragment {
 
     public void handleCharacteristicUpdate(BluetoothGattCharacteristic characteristic)
     {
-        switch (characteristic.getUuid().toString()){
-            case ViewFragment.UUID_CHARACTERISTIC_TEMPERATURE:
-            {
-                //Display Temperatur
-                getActivity().runOnUiThread(() -> {
-                    m_aktTempValue = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_SINT8, 0);
-                    String temptext = ("(" + m_aktTempValue + " °C)");
-                    m_aktTemperatur.setText(temptext);
-                });
-
-                break;
-            }
-            case ViewFragment.UUID_CHARACTERISTIC_PRESSURE:
-            {
-                //Display Pressure
-                getActivity().runOnUiThread(() -> {
-                    m_aktPressureValue = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0);
-                    String temptext = ("(" + m_aktPressureValue + " mBar)");
-                    m_aktPressure.setText(temptext);
-                });
-
-                break;
-            }
-            case ViewFragment.UUID_CHARACTERISTIC_CO2:
-            {
-                //Display CO2
-                getActivity().runOnUiThread(() -> {
-                    m_aktCo2Value = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0);
-                    String temptext = ("(" + m_aktCo2Value + " ppm)");
-                    m_aktCo2.setText(temptext);
-                });
-
-                break;
-            }
-            case ViewFragment.UUID_CHARACTERISTIC_HUMIDITY:
-            {
-                //Display Humidity
-                getActivity().runOnUiThread(() -> {
-                    m_aktHumidityValue = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
-                    String temptext = ("(" + m_aktHumidityValue + " %)");
-                    m_aktHumidity.setText(temptext);
-                });
-
-                break;
-            }
-            case ViewFragment.UUID_CHARACTERISTIC_VOC:
-            {
-                //Display VOC
-                getActivity().runOnUiThread(() -> {
-                    m_aktVocValue = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0);
-                    String temptext = ("(" + m_aktVocValue + " ppb)");
-                    m_aktVoc.setText(temptext);
-                });
-
-                break;
-            }
-            case ViewFragment.UUID_CHARACTERISTIC_SETTING_OUTPUTACT:
-            {
-                getActivity().runOnUiThread(() -> {
-                    if(characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0) == 0)
-                    {
-                        m_isOutputActive = false;
-                        m_outputinactiveImage.setVisibility(View.VISIBLE);
-                        m_outputactiveImage.setVisibility(View.INVISIBLE);
-                    }
-                    else
-                    {
-                        m_isOutputActive = true;
-                        m_outputinactiveImage.setVisibility(View.INVISIBLE);
-                        m_outputactiveImage.setVisibility(View.VISIBLE);
-                    }
-                });
-                break;
-            }
-            case ViewFragment.UUID_CHARACTERISTIC_BRIGHT:
-            default:
-            {
-                //Bright oder Default: Ignorieren
-                break;
-            }
+        if(characteristic.getUuid().equals(LGS_Constants.UUID_CHARACTERISTIC_TEMPERATURE))
+        {
+            //Display Temperatur
+            getActivity().runOnUiThread(() -> {
+                m_aktTempValue = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_SINT8, 0);
+                String temptext = ("(" + m_aktTempValue + " °C)");
+                m_aktTemperatur.setText(temptext);
+            });
+        }
+        else if(characteristic.getUuid().equals(LGS_Constants.UUID_CHARACTERISTIC_PRESSURE))
+        {
+            //Display Pressure
+            getActivity().runOnUiThread(() -> {
+                m_aktPressureValue = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0);
+                String temptext = ("(" + m_aktPressureValue + " mBar)");
+                m_aktPressure.setText(temptext);
+            });
+        }
+        else if(characteristic.getUuid().equals(LGS_Constants.UUID_CHARACTERISTIC_CO2))
+        {
+            //Display CO2
+            getActivity().runOnUiThread(() -> {
+                m_aktCo2Value = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0);
+                String temptext = ("(" + m_aktCo2Value + " ppm)");
+                m_aktCo2.setText(temptext);
+            });
+        }
+        else if(characteristic.getUuid().equals(LGS_Constants.UUID_CHARACTERISTIC_HUMIDITY))
+        {
+            //Display Humidity
+            getActivity().runOnUiThread(() -> {
+                m_aktHumidityValue = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
+                String temptext = ("(" + m_aktHumidityValue + " %)");
+                m_aktHumidity.setText(temptext);
+            });
+        }
+        else if(characteristic.getUuid().equals(LGS_Constants.UUID_CHARACTERISTIC_VOC))
+        {
+            //Display VOC
+            getActivity().runOnUiThread(() -> {
+                m_aktVocValue = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0);
+                String temptext = ("(" + m_aktVocValue + " ppb)");
+                m_aktVoc.setText(temptext);
+            });
+        }
+        else if(characteristic.getUuid().equals(LGS_Constants.UUID_CHARACTERISTIC_SETTING_OUTPUTACT))
+        {
+            getActivity().runOnUiThread(() -> {
+                if(characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0) == 0)
+                {
+                    m_isOutputActive = false;
+                    m_outputinactiveImage.setVisibility(View.VISIBLE);
+                    m_outputactiveImage.setVisibility(View.INVISIBLE);
+                }
+                else {
+                    m_isOutputActive = true;
+                    m_outputinactiveImage.setVisibility(View.INVISIBLE);
+                    m_outputactiveImage.setVisibility(View.VISIBLE);
+                }
+            });
+        }
+        else {
+            //Bright oder Default: Ignorieren
         }
     }
 
@@ -357,75 +305,61 @@ public class SettingsFragment extends Fragment {
             case R.id.settingsfragment_backButton:
             {
                 Log.i(TAG, "AdapterView.OnClickListener - settingsfragment_backButton clicked.");
-                m_CallBack.reSwitchToHomeFragment();
+                m_interface.reSwitchToHomeFragment();
                 break;
             }
             case R.id.settingsfragment_syncButton:
             {
                 Log.i(TAG, "AdapterView.OnClickListener - settingsfragment_syncButton clicked.");
 
-                BluetoothGatt gatt = m_CallBack.getGattObject();
-                BluetoothGattService service =
-                        gatt.getService(UUID.fromString(ViewFragment.UUID_SERVICE_CONFIGURATION));
+                LGS_BluetoothInterface btinterface = m_interface.getFSM().getBtInterface();
+                if(btinterface != null)
+                {
+                    //Reprate changed?
+                    if(m_aktreprate != Integer.parseInt(m_editRepRate.getText().toString())) {
+                        btinterface
+                                .writeRepRate(Integer.parseInt(m_editRepRate.getText().toString()));
+                        m_editRepRate.setEnabled(false);
+                    }
 
-                //Reprate changed?
-                if(m_aktreprate != Integer.parseInt(m_editRepRate.getText().toString())) {
-                    BluetoothGattCharacteristic characteristic =
-                            service.getCharacteristic(UUID.fromString(ViewFragment.UUID_CHARACTERISTIC_SETTING_REPRATE));
-                    characteristic.setValue(Integer.parseInt(m_editRepRate.getText().toString()),
-                            BluetoothGattCharacteristic.FORMAT_UINT16, 0);
-                    m_editRepRate.setEnabled(false);
-                    gatt.writeCharacteristic(characteristic);
+                    //Critical Temperature changed?
+                    if(m_aktcriticTemp != Integer.parseInt(m_editCriticTemperature.getText().toString())) {
+                        btinterface
+                                .writeCriticTemperature(Integer.parseInt(m_editCriticTemperature.getText().toString()));
+                        m_editCriticTemperature.setEnabled(false);
+                    }
+
+                    //Critical Pressure changed?
+                    if(m_aktcriticPressure != Integer.parseInt(m_editCriticPressure.getText().toString())) {
+                        btinterface
+                                .writeCriticPressure(Integer.parseInt(m_editCriticPressure.getText().toString()));
+                        m_editCriticPressure.setEnabled(false);
+                    }
+
+                    //Critical CO2 changed?
+                    if(m_aktcriticCo2 != Integer.parseInt(m_editCriticCo2.getText().toString())) {
+                        btinterface
+                                .writeCriticCO2(Integer.parseInt(m_editCriticCo2.getText().toString()));
+                        m_editCriticCo2.setEnabled(false);
+                    }
+
+                    //Critical Humidity changed?
+                    if(m_aktcriticHumidity != Integer.parseInt(m_editCriticHumidity.getText().toString())) {
+                        btinterface
+                                .writeCriticHumidity(Integer.parseInt(m_editCriticHumidity.getText().toString()));
+                        m_editCriticHumidity.setEnabled(false);
+                    }
+
+                    //Critical VOC changed?
+                    if(m_aktcriticVoc != Integer.parseInt(m_editCriticVoc.getText().toString())) {
+                        btinterface
+                                .writeCriticVOC(Integer.parseInt(m_editCriticVoc.getText().toString()));
+                        m_editCriticVoc.setEnabled(false);
+                    }
                 }
-
-                //Critical Temperature changed?
-                if(m_aktcriticTemp != Integer.parseInt(m_editCriticTemperature.getText().toString())) {
-                    BluetoothGattCharacteristic characteristic =
-                            service.getCharacteristic(UUID.fromString(ViewFragment.UUID_CHARACTERISTIC_SETTING_CRITTEMP));
-                    characteristic.setValue(Integer.parseInt(m_editCriticTemperature.getText().toString()),
-                            BluetoothGattCharacteristic.FORMAT_SINT8, 0);
-                    m_editCriticTemperature.setEnabled(false);
-                    gatt.writeCharacteristic(characteristic);
-                }
-
-                //Critical Pressure changed?
-                if(m_aktcriticPressure != Integer.parseInt(m_editCriticPressure.getText().toString())) {
-                    BluetoothGattCharacteristic characteristic =
-                            service.getCharacteristic(UUID.fromString(ViewFragment.UUID_CHARACTERISTIC_SETTING_CRITPRES));
-                    characteristic.setValue(Integer.parseInt(m_editCriticPressure.getText().toString()),
-                            BluetoothGattCharacteristic.FORMAT_UINT16, 0);
-                    m_editCriticPressure.setEnabled(false);
-                    gatt.writeCharacteristic(characteristic);
-                }
-
-                //Critical CO2 changed?
-                if(m_aktcriticCo2 != Integer.parseInt(m_editCriticCo2.getText().toString())) {
-                    BluetoothGattCharacteristic characteristic =
-                            service.getCharacteristic(UUID.fromString(ViewFragment.UUID_CHARACTERISTIC_SETTING_CRITCO2));
-                    characteristic.setValue(Integer.parseInt(m_editCriticCo2.getText().toString()),
-                            BluetoothGattCharacteristic.FORMAT_UINT16, 0);
-                    m_editCriticCo2.setEnabled(false);
-                    gatt.writeCharacteristic(characteristic);
-                }
-
-                //Critical Humidity changed?
-                if(m_aktcriticHumidity != Integer.parseInt(m_editCriticHumidity.getText().toString())) {
-                    BluetoothGattCharacteristic characteristic =
-                            service.getCharacteristic(UUID.fromString(ViewFragment.UUID_CHARACTERISTIC_SETTING_CRITHUM));
-                    characteristic.setValue(Integer.parseInt(m_editCriticHumidity.getText().toString()),
-                            BluetoothGattCharacteristic.FORMAT_UINT8, 0);
-                    m_editCriticHumidity.setEnabled(false);
-                    gatt.writeCharacteristic(characteristic);
-                }
-
-                //Critical VOC changed?
-                if(m_aktcriticVoc != Integer.parseInt(m_editCriticVoc.getText().toString())) {
-                    BluetoothGattCharacteristic characteristic =
-                            service.getCharacteristic(UUID.fromString(ViewFragment.UUID_CHARACTERISTIC_SETTING_CRITVOC));
-                    characteristic.setValue(Integer.parseInt(m_editCriticVoc.getText().toString()),
-                            BluetoothGattCharacteristic.FORMAT_UINT16, 0);
-                    m_editCriticVoc.setEnabled(false);
-                    gatt.writeCharacteristic(characteristic);
+                else
+                {
+                    Log.e(TAG, "LGS_BluetoothInterface: Nullobjekt! Luschige Programmierung.");
                 }
             }
             default:

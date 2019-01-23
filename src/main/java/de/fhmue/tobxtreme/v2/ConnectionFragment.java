@@ -11,115 +11,33 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.Button;
-import android.widget.ListView;
 import android.widget.ProgressBar;
-import android.widget.Toast;
+import android.widget.TextView;
 
 
-import java.util.ArrayList;
 
 public class ConnectionFragment extends Fragment {
     /**
      * INTERFACE
      */
-    public interface ConnectionFragmentInterface {
+    public interface Interface {
         void startScan();
-
-        void stopScan();
-
-        void connectToDevice(BT_Device device);
     }
-
-    public ConnectionFragmentInterface m_Callback;
+    public Interface m_interface;
 
 
     /**
      * CONSTANTS
      */
-    private static final String TAG = "ConnectionFragment";
-    public static final String LGS_DEVICENAME = "LGS.tb1.0";
+    private static final String TAG             = "ConnectionFragment";
 
 
     /**
      * OBJECTS
      */
-    private ListView                    m_listView;             //Listview Devices
-    private ListAdapter_BTLE_Devices    m_adapter;              //Listadapter
-    private ArrayList<BT_Device>        m_BTDevicesArrayList;   //Device Arraylist Data
-    private boolean                     m_scanActive;           //Flag, ob gerade Scan aktiv
     private Button                      m_scanButton;           //Button Retry Scan
     private ProgressBar                 m_progressBar;          //ProgressBar ActivityIndicator
-
-
-    /**
-     * GETTER/SETTER
-     */
-    public ArrayList<BT_Device> getDeviceList() {
-        return m_BTDevicesArrayList;
-    }
-
-    public void setScanActive(boolean isActive) {
-        m_scanActive = isActive;
-        m_progressBar.setIndeterminate(isActive);
-        if (isActive) {
-            m_progressBar.setVisibility(View.VISIBLE);
-        } else {
-            m_progressBar.setVisibility(View.INVISIBLE);
-        }
-
-        m_scanButton.setEnabled(!isActive);
-    }
-
-    public void clearDeviceList() {
-        m_BTDevicesArrayList.clear();
-        m_adapter = new ListAdapter_BTLE_Devices(getActivity(), R.layout.btle_device_list_item, m_BTDevicesArrayList);
-        m_listView.setAdapter(m_adapter);
-    }
-
-    public void addDevice(final BT_Device device) {
-        //Log.d(TAG, "addDevice: " + device.m_device.getName() + ": " + device.m_device.getAddress());
-
-        m_BTDevicesArrayList.removeIf(n -> (n.m_device.getAddress().equals(device.m_device.getAddress())));
-        m_BTDevicesArrayList.add(device);
-
-        m_adapter = new ListAdapter_BTLE_Devices(getActivity(), R.layout.btle_device_list_item, m_BTDevicesArrayList);
-        m_listView.setAdapter(m_adapter);
-
-        //Falls LGS Sensor: Direkt verbinden
-        String deviceName = device.m_device.getName();
-        if((deviceName != null) && (deviceName.equals(LGS_DEVICENAME)))
-        {
-            m_Callback.connectToDevice(device);
-        }
-    }
-
-    public void removeDevice(final BT_Device device) {
-        //Log.d(TAG, "removeDevice: " + device.m_device.getName() + ": " + device.m_device.getAddress());
-        if (m_BTDevicesArrayList.removeIf(n -> (n.m_device.getAddress().equals(device.m_device.getAddress())))) {
-            m_adapter = new ListAdapter_BTLE_Devices(getActivity(), R.layout.btle_device_list_item, m_BTDevicesArrayList);
-            m_listView.setAdapter(m_adapter);
-        }
-    }
-
-    @Override
-    public void onAttach(Context context) {
-        super.onAttach(context);
-        if (context instanceof ConnectionFragmentInterface) {
-            m_Callback = (ConnectionFragmentInterface) context;
-        } else {
-            throw new ClassCastException(context.toString()
-                    + " must implement ConnectionFragment.ConnectionFragmentInterface");
-        }
-    }
-
-    @Override
-    public void onDetach() {
-        if(m_Callback != null)
-        {
-            m_Callback.stopScan();
-        }
-        super.onDetach();
-    }
+    private TextView                    m_textView;             //Textview "Suche Sensor"
 
 
     @Nullable
@@ -128,53 +46,98 @@ public class ConnectionFragment extends Fragment {
 
         View v = inflater.inflate(R.layout.fragment_connection, container, false);
 
-        m_BTDevicesArrayList = new ArrayList<>();
-        m_adapter = new ListAdapter_BTLE_Devices(getActivity(), R.layout.btle_device_list_item, m_BTDevicesArrayList);
-
         /**
          * Get UI-Items from Layout
          */
         m_scanButton = v.findViewById(R.id.connection_fragment_scanButton);
-        m_listView = v.findViewById(R.id.connection_fragment_listView);
+        m_textView = v.findViewById(R.id.connection_fragment_textView);
         m_progressBar = v.findViewById(R.id.connection_fragment_activityIndicator);
 
         /**
          * Init UI-Items
          */
-        m_listView.setAdapter(m_adapter);
-        m_listView.setOnItemClickListener(m_itemClickListener);
         m_progressBar.setIndeterminate(false);
         m_progressBar.setVisibility(View.INVISIBLE);
         m_scanButton.setEnabled(false);
         m_scanButton.setOnClickListener(m_buttonClickListener);
+        m_textView.setVisibility(View.INVISIBLE);
+
+        //Scan direkt aktiv bei Start:
+        setScanActive(false);
 
         return v;
     }
 
+
+    public void setScanActive(boolean isActive)
+    {
+        Log.i(TAG, "setScanActive: " + String.valueOf(isActive));
+        m_progressBar.setIndeterminate(isActive);
+        if (isActive)
+        {
+            m_progressBar.setVisibility(View.VISIBLE);
+            m_scanButton.setEnabled(false);
+
+            m_textView.setVisibility(View.VISIBLE);
+            m_textView.setText("Suche Sensor");
+        }
+        else
+        {
+            m_progressBar.setVisibility(View.INVISIBLE);
+            m_scanButton.setEnabled(true);
+
+            m_textView.setVisibility(View.VISIBLE);
+            m_textView.setText("Sensor nicht gefunden");
+        }
+    }
+
+    public void setConnecting(boolean isConnecting)
+    {
+        Log.i(TAG, "setScanActive: " + String.valueOf(isConnecting));
+        if(isConnecting)
+        {
+            m_progressBar.setIndeterminate(true);
+            m_progressBar.setVisibility(View.VISIBLE);
+            m_scanButton.setEnabled(false);
+
+            m_textView.setVisibility(View.VISIBLE);
+            m_textView.setText("Verbinde");
+        }
+        else
+        {
+            m_progressBar.setVisibility(View.INVISIBLE);
+            m_scanButton.setEnabled(true);
+
+            m_textView.setVisibility(View.VISIBLE);
+            m_textView.setText("Konnte nicht verbinden");
+        }
+    }
+
+
+    @Override
+    public void onAttach(Context context) {
+        super.onAttach(context);
+        if (context instanceof Interface) {
+            m_interface = (Interface) context;
+        } else {
+            throw new ClassCastException(context.toString()
+                    + " must implement ConnectionFragment.ConnectionFragmentInterface");
+        }
+    }
+
+    @Override
+    public void onDetach() {
+        super.onDetach();
+    }
+
+
     /**
      * UI Adapters
      */
-    private AdapterView.OnItemClickListener m_itemClickListener = (adapterView, view, i, l) -> {
-        if (m_scanActive) m_Callback.stopScan(); //Aktuellen Scan stoppen
-
-        /**
-         *   Item, auf das geklickt wurde, verarbeiten: (Position in Liste: i)
-         *   -> Mit Device verbinden
-         */
-        BT_Device device = m_BTDevicesArrayList.get(i);
-        if (device.m_device.getAddress().isEmpty()) {
-            Log.i(TAG, "Adress of Device is empty!");
-            Toast.makeText(getActivity(), "Failed to Connect, Deviceadress is empty!", Toast.LENGTH_SHORT).show();
-        } else {
-            m_Callback.connectToDevice(device);
-        }
-    };
-    public AdapterView.OnItemClickListener getOnItemClickListener() {return m_itemClickListener;};
-
     private AdapterView.OnClickListener m_buttonClickListener = (View v) -> {
         if (v.getId() == R.id.connection_fragment_scanButton) {
-            if(m_Callback != null) m_Callback.startScan();
+            Log.i(TAG, ": Starte Scan!");
+            if(m_interface != null) m_interface.startScan();
         }
     };
-    public AdapterView.OnClickListener getOnClickListener() {return m_buttonClickListener;};
 }

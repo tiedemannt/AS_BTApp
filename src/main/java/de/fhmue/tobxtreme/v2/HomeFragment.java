@@ -4,7 +4,6 @@ import android.bluetooth.BluetoothGattCharacteristic;
 import android.content.Context;
 import android.graphics.Color;
 import android.os.Bundle;
-import android.provider.ContactsContract;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
@@ -22,29 +21,24 @@ import com.jjoe64.graphview.LegendRenderer;
 import com.jjoe64.graphview.series.DataPoint;
 import com.jjoe64.graphview.series.LineGraphSeries;
 
-import org.w3c.dom.Text;
-
+import java.text.SimpleDateFormat;
 import java.util.Calendar;
+
 
 public class HomeFragment extends Fragment {
 
-    public interface HomeFragmentInterface
+    public interface Interface
     {
         void switchToSettingsFragment();
-        BT_FSM_DataRead getBTFsm();
+        LGS_BluetoothFSM getFSM();
     }
-    HomeFragmentInterface m_CallBack;
+    Interface m_interface;
 
-    /**
-     * Interface von ViewFragment nutzen
-     */
-    ViewFragment.ViewFragmentInterface m_viewFragmentCallback;
 
     /**
      * OBJECTS
      */
     private ImageButton     m_settingsButton;   //Settings-Button
-    private ImageButton     m_disconnectButton; //Disconnect-Button
     private ImageView       m_sun;              //Zustand-Indicator Sonne
     private GraphView       m_graphView;        //Graphview für Live-Datenanzeige
     private TextView        m_temperature;      //Textanzeige Temperatur
@@ -57,6 +51,7 @@ public class HomeFragment extends Fragment {
     private ImageButton     m_plotFeuchte;      //Button Plot Feuchte
     private ImageButton     m_plotVOC;          //Button Plot VOC
     private ImageButton     m_plotCo2;          //Button Plot CO2
+    private TextView        m_standText;        //Textanzeige Ladezeitpunkt Daten
 
     //Data:
     boolean                     m_isBright;
@@ -79,7 +74,6 @@ public class HomeFragment extends Fragment {
          * Assign Objects
          */
         m_settingsButton = v.findViewById(R.id.homefragment_adjustbutton);
-        m_disconnectButton = v.findViewById(R.id.homefragment_disconnectButton);
         m_graphView = v.findViewById(R.id.homefragment_graphview);
         m_sun = v.findViewById(R.id.homefragment_sun);
         m_temperature = v.findViewById(R.id.homeview_temperatur);
@@ -92,9 +86,9 @@ public class HomeFragment extends Fragment {
         m_plotFeuchte = v.findViewById(R.id.homeview_buttonFeuchte);
         m_plotVOC = v.findViewById(R.id.homeview_buttonVOC);
         m_plotCo2 = v.findViewById(R.id.homeview_buttonCO2);
+        m_standText = v.findViewById(R.id.homeview_loadStand);
 
         m_settingsButton.setOnClickListener(m_clickListener);
-        m_disconnectButton.setOnClickListener(m_clickListener);
         m_plotTemperature.setOnClickListener(m_clickListener);
         m_plotPressure.setOnClickListener(m_clickListener);
         m_plotFeuchte.setOnClickListener(m_clickListener);
@@ -122,15 +116,13 @@ public class HomeFragment extends Fragment {
     @Override
     public void onAttach(Context context) {
         super.onAttach(context);
-        if ((context instanceof ConnectionFragment.ConnectionFragmentInterface)
-                && (context instanceof HomeFragment.HomeFragmentInterface))
+        if (context instanceof Interface)
         {
-            m_viewFragmentCallback = (ViewFragment.ViewFragmentInterface) context;
-            m_CallBack = (HomeFragmentInterface) context;
+            m_interface = (Interface) context;
         }
         else {
             throw new ClassCastException(context.toString()
-                    + " must implement ViewFragment.ViewFragmentInterface and HomeFragment.HomeFragmentInterface");
+                    + " must implement and HomeFragment.HomeFragmentInterface");
         }
     }
     @Override
@@ -147,64 +139,49 @@ public class HomeFragment extends Fragment {
     {
         //Display Value on UI Thread
         getActivity().runOnUiThread(() -> {
-            switch (characteristic.getUuid().toString())
+            if(characteristic.getUuid().equals(LGS_Constants.UUID_CHARACTERISTIC_BRIGHT))
             {
-                case ViewFragment.UUID_CHARACTERISTIC_BRIGHT:
-                {
-                    int isbright = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
-                    if(isbright == 1 && !m_isBright) {
-                        m_isBright = true;
-                        m_sun.setVisibility(View.VISIBLE);
-                    }
-                    else if(isbright == 0 && m_isBright) {
-                        m_isBright = false;
-                        m_sun.setVisibility(View.INVISIBLE);
-                    }
-                    else {
-                        //Tue nichts
-                    }
-                    break;
+                int isbright = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
+                if(isbright == 1 && !m_isBright) {
+                    m_isBright = true;
+                    m_sun.setVisibility(View.VISIBLE);
                 }
-                case ViewFragment.UUID_CHARACTERISTIC_TEMPERATURE:
-                {
-                    m_temperature.setText(
-                            characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_SINT8, 0) + " °C");
-                    break;
+                else if(isbright == 0 && m_isBright) {
+                    m_isBright = false;
+                    m_sun.setVisibility(View.INVISIBLE);
                 }
-                case ViewFragment.UUID_CHARACTERISTIC_VOC:
-                {
-                    m_voc.setText(
-                            characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0) + " ppb");
-                    break;
+                else {
+                    //Tue nichts
                 }
-                case ViewFragment.UUID_CHARACTERISTIC_CO2:
-                {
-                    m_co2.setText(
-                            characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0) + " ppm");
-                    break;
-                }
-                case ViewFragment.UUID_CHARACTERISTIC_HUMIDITY:
-                {
-                    m_Feuchte.setText(
-                            characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0) + " %");
-                    break;
-                }
-                case ViewFragment.UUID_CHARACTERISTIC_PRESSURE:
-                {
-                    m_Pressure.setText(
-                            characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0) + " mBar");
-                    break;
-                }
-                case ViewFragment.UUID_CHARACTERISTIC_SETTING_OUTPUTACT:
-                {
-                    //Ignore
-                    break;
-                }
-                default:
-                {
-                    //Log.i(TAG, "Ungültige Characteristic empfangen. + " + characteristic.getUuid().toString());
-                    break;
-                }
+            }
+            else if(characteristic.getUuid().equals(LGS_Constants.UUID_CHARACTERISTIC_TEMPERATURE))
+            {
+                m_temperature.setText(
+                        characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_SINT8, 0) + " °C"); 
+            }
+            else if(characteristic.getUuid().equals(LGS_Constants.UUID_CHARACTERISTIC_VOC))
+            {
+                m_voc.setText(
+                        characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0) + " ppb"); 
+            }
+            else if(characteristic.getUuid().equals(LGS_Constants.UUID_CHARACTERISTIC_CO2))
+            {
+                m_co2.setText(
+                        characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0) + " ppm"); 
+            }
+            else if(characteristic.getUuid().equals(LGS_Constants.UUID_CHARACTERISTIC_HUMIDITY))
+            {
+                m_Feuchte.setText(
+                        characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0) + " %");
+            }
+            else if(characteristic.getUuid().equals(LGS_Constants.UUID_CHARACTERISTIC_PRESSURE))
+            {
+                m_Pressure.setText(
+                        characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT16, 0) + " mBar"); 
+            }
+            else
+            {
+                //Log.e(TAG, "displayCharacteristicValue: Code prüfen!");
             }
 
         });
@@ -213,39 +190,39 @@ public class HomeFragment extends Fragment {
     public AdapterView.OnClickListener m_clickListener = (View view) -> {
         switch(view.getId())
         {
-            case R.id.homefragment_disconnectButton: {
-                Log.i(TAG, "AdapterView.OnClickListener - homefragment_disconnectButton clicked.");
-                m_viewFragmentCallback.disconnectFromDevice();
-                break;
-            }
             case R.id.homefragment_adjustbutton: {
                 Log.i(TAG, "AdapterView.OnClickListener - homefragment_adjustbutton clicked.");
-                m_CallBack.switchToSettingsFragment();
+                m_interface.switchToSettingsFragment();
                 break;
             }
             case R.id.homeview_buttonTemperatur:
             {
-                m_CallBack.getBTFsm().startReadProcess(BT_FSM_DataRead.FSM_SENSORPROPERTY.SENSORPROPERTY_TEMPERATURE);
+                m_interface.getFSM()
+                        .startReadProcess(LGS_BluetoothFSM.FSM_SENSORPROPERTY.SENSORPROPERTY_TEMPERATURE);
                 break;
             }
             case R.id.homeview_buttonFeuchte:
             {
-                m_CallBack.getBTFsm().startReadProcess(BT_FSM_DataRead.FSM_SENSORPROPERTY.SENSORPROPERTY_HUMIDITY);
+                m_interface.getFSM()
+                        .startReadProcess(LGS_BluetoothFSM.FSM_SENSORPROPERTY.SENSORPROPERTY_HUMIDITY);
                 break;
             }
             case R.id.homeview_buttonDruck:
             {
-                m_CallBack.getBTFsm().startReadProcess(BT_FSM_DataRead.FSM_SENSORPROPERTY.SENSORPROPERTY_PRESSURE);
+                m_interface.getFSM()
+                        .startReadProcess(LGS_BluetoothFSM.FSM_SENSORPROPERTY.SENSORPROPERTY_PRESSURE);
                 break;
             }
             case R.id.homeview_buttonCO2:
             {
-                m_CallBack.getBTFsm().startReadProcess(BT_FSM_DataRead.FSM_SENSORPROPERTY.SENSORPROPERTY_CO2);
+                m_interface.getFSM()
+                        .startReadProcess(LGS_BluetoothFSM.FSM_SENSORPROPERTY.SENSORPROPERTY_CO2);
                 break;
             }
             case R.id.homeview_buttonVOC:
             {
-                m_CallBack.getBTFsm().startReadProcess(BT_FSM_DataRead.FSM_SENSORPROPERTY.SENSORPROPERTY_VOC);
+                m_interface.getFSM()
+                        .startReadProcess(LGS_BluetoothFSM.FSM_SENSORPROPERTY.SENSORPROPERTY_VOC);
                 break;
             }
             default:
@@ -255,9 +232,9 @@ public class HomeFragment extends Fragment {
             }
         }
     };
-    public void fsmReadProcessFinished(BT_FSM_DataRead.ReadProcessData readData)
+    public void fsmReadProcessFinished(LGS_BluetoothFSM.ReadProcessData readData)
     {
-        Log.d(TAG, "fsmReadProcessFinished() called!");
+        Log.i(TAG, "fsmReadProcessFinished(): begin!");
 
         boolean acceptData = true;
         
@@ -349,6 +326,14 @@ public class HomeFragment extends Fragment {
             //m_graphView.getViewport().setMinY(0.0);
             //m_graphView.getViewport().setMaxY(30.0);
         }
+
+        getActivity().runOnUiThread(() -> {
+            //Text setzen: Ladezeitpunkt der Daten
+            SimpleDateFormat zeitFormat = new SimpleDateFormat("HH:mm");
+            m_standText.setText("Stand: " + zeitFormat.format(Calendar.getInstance().getTime()) + " Uhr");
+        });
+
+        Log.i(TAG, "fsmReadProcessFinished(): success!");
     }
 }
 
